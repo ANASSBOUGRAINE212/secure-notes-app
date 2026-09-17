@@ -1,0 +1,22 @@
+# secrets - never commit this
+.env
+auth-service/.env
+notes-service/.env
+kubernetes/secrets.yaml
+
+# terraform
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfvars
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+
+# python
+**/venv/
+**/__pycache__/
+*.pyc
+
+# editor/OS junk
+.vscode/
+.idea/
+.DS_Store

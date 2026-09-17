@@ -1,0 +1,61 @@
+services:
+  auth-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${AUTH_DB_USER}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD}
+      POSTGRES_DB: ${AUTH_DB_NAME}
+    volumes:
+      - auth_pgdata:/var/lib/postgresql/data
+
+  notes-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${NOTES_DB_USER}
+      POSTGRES_PASSWORD: ${NOTES_DB_PASSWORD}
+      POSTGRES_DB: ${NOTES_DB_NAME}
+    volumes:
+      - notes_pgdata:/var/lib/postgresql/data
+
+  auth-service:
+    build:
+      context: ../auth-service
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://${AUTH_DB_USER}:${AUTH_DB_PASSWORD}@auth-db:5432/${AUTH_DB_NAME}
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      - auth-db
+
+  notes-service:
+    build:
+      context: ../notes-service
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://${NOTES_DB_USER}:${NOTES_DB_PASSWORD}@notes-db:5432/${NOTES_DB_NAME}
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      - notes-db
+
+  gateway:
+    build:
+      context: ../gateway
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - auth-service
+      - notes-service
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5500:8080"
+    depends_on:
+      - gateway
+
+volumes:
+  auth_pgdata:
+  notes_pgdata:

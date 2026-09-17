@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>notes.</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div id="authScreen" class="screen">
+    <div class="card">
+      <h1>notes.</h1>
+      <p class="sub">your stuff, locked to your account</p>
+
+      <div class="tabs">
+        <button id="tabLogin" class="tab active">log in</button>
+        <button id="tabRegister" class="tab">sign up</button>
+      </div>
+
+      <form id="authForm">
+        <input type="email" id="email" placeholder="email" required>
+        <input type="password" id="password" placeholder="password" required minlength="8">
+        <button type="submit" id="authSubmit">log in</button>
+      </form>
+
+      <p id="authError" class="error hidden"></p>
+    </div>
+  </div>
+
+  <div id="appScreen" class="screen hidden">
+    <header>
+      <h1>notes.</h1>
+      <div class="header-right">
+        <span id="userEmail"></span>
+        <button id="logoutBtn" class="ghost">log out</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="composer">
+        <input type="text" id="noteTitle" placeholder="title">
+        <textarea id="noteContent" placeholder="write something..." rows="4"></textarea>
+        <div class="composer-actions">
+          <button id="saveNoteBtn">save note</button>
+          <button id="cancelEditBtn" class="ghost hidden">cancel</button>
+        </div>
+      </section>
+
+      <section id="notesList" class="notes-list"></section>
+      <p id="emptyState" class="empty hidden">nothing here yet — write your first note above</p>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: secure-notes
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://gitlab.com/yourusername/secure-notes.git
+    targetRevision: main
+    path: kubernetes
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: secure-notes
+
+  syncPolicy:
+    automated:
+      prune: true       # deletes resources ArgoCD no longer sees in git
+      selfHeal: true     # reverts any manual kubectl changes back to match git
+    syncOptions:
+      - CreateNamespace=true

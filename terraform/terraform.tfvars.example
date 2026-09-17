@@ -1,0 +1,29 @@
+# TERRAFORM VARIABLES EXAMPLE
+
+
+# General Settings
+aws_region     = "us-east-1"
+project_name   = "secure-notes"
+environment    = "dev"  # local, dev, staging, production
+use_local_emulator = false  # true for ministack emulator, false for real AWS
+
+# VPC Settings
+vpc_cidr           = "10.0.0.0/16"
+availability_zones = ["us-east-1a", "us-east-1b", "us-east-1c"]
+
+# EKS Settings
+eks_cluster_name        = "secure-notes-eks"
+eks_version             = "1.31"
+eks_node_instance_types = ["t3.medium"]
+eks_node_desired_size   = 2
+eks_node_min_size       = 1
+eks_node_max_size       = 4
+
+# RDS Settings
+rds_instance_class = "db.t3.micro"  # Use db.t3.small or larger for production
+
+# Database Credentials (CHANGE THESE!)
+auth_db_username  = "auth_admin"
+auth_db_password  = "CHANGE_ME_TO_STRONG_PASSWORD"
+notes_db_username = "notes_admin"
+notes_db_password  = "CHANGE_ME_TO_STRONG_PASSWORD"

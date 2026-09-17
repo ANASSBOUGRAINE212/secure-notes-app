@@ -1,0 +1,213 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #f4f2ee;
+  color: #1c1c1c;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* ---- auth screen ---- */
+
+#authScreen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #e4e0d8;
+  border-radius: 14px;
+  padding: 32px;
+  width: 100%;
+  max-width: 380px;
+}
+
+.card h1, header h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.sub {
+  color: #7a7568;
+  margin: 4px 0 20px;
+  font-size: 14px;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 18px;
+  background: #f0eee8;
+  padding: 4px;
+  border-radius: 10px;
+}
+
+.tab {
+  flex: 1;
+  padding: 8px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #6d6a60;
+}
+
+.tab.active {
+  background: #1c1c1c;
+  color: #fff;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+input, textarea {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 11px 12px;
+  border: 1px solid #ddd8cc;
+  border-radius: 8px;
+  outline: none;
+  background: #fbfaf7;
+}
+
+input:focus, textarea:focus {
+  border-color: #b8ab8a;
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 11px 16px;
+  border: none;
+  border-radius: 8px;
+  background: #1c1c1c;
+  color: #fff;
+}
+
+button:hover {
+  opacity: 0.88;
+}
+
+button.ghost {
+  background: transparent;
+  color: #6d6a60;
+  border: 1px solid #ddd8cc;
+}
+
+.error {
+  color: #b3261e;
+  font-size: 13px;
+  margin-top: 12px;
+  margin-bottom: 0;
+}
+
+/* ---- app screen ---- */
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 32px;
+  border-bottom: 1px solid #e4e0d8;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+#userEmail {
+  font-size: 13px;
+  color: #7a7568;
+}
+
+main {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 28px 20px 60px;
+}
+
+.composer {
+  background: #fff;
+  border: 1px solid #e4e0d8;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.composer textarea {
+  resize: vertical;
+}
+
+.composer-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.note {
+  background: #fff;
+  border: 1px solid #e4e0d8;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.note h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.note p {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: #444;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.note-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #999;
+}
+
+.note-actions button {
+  font-size: 12px;
+  padding: 5px 10px;
+  margin-left: 6px;
+}
+
+.empty {
+  text-align: center;
+  color: #9a9587;
+  font-size: 14px;
+  margin-top: 40px;
+}

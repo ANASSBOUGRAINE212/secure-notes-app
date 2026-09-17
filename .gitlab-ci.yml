@@ -1,0 +1,144 @@
+include:
+  - template: Security/SAST.gitlab-ci.yml
+  - template: Security/Dependency-Scanning.gitlab-ci.yml
+  - template: Security/Secret-Detection.gitlab-ci.yml
+  - template: Security/Container-Scanning.gitlab-ci.yml
+
+
+stages:
+  - build
+  - test
+  - update-manifests
+
+variables:
+  REGISTRY: $CI_REGISTRY_IMAGE
+  TRIVY_USERNAME: $CI_REGISTRY_USER
+  TRIVY_PASSWORD: $CI_REGISTRY_PASSWORD
+  TRIVY_AUTH_URL: $CI_REGISTRY
+  # GitLab automatically provides CI_REGISTRY, CI_REGISTRY_USER,
+  # CI_REGISTRY_PASSWORD, CI_REGISTRY_IMAGE for its built-in registry -
+  # nothing to configure manually for these.
+
+.build_template: &build_template
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+
+
+dependency-check:
+  stage: test
+  image: owasp/dependency-check:latest
+  script:
+    - /usr/share/dependency-check/bin/dependency-check.sh
+      --scan ./auth-service/requirements.txt
+      --scan ./notes-service/requirements.txt
+      --format "HTML"
+      --out ./dependency-check-report
+  artifacts:
+    paths:
+      - dependency-check-report/
+    expire_in: 1 week
+
+
+
+test-auth-service:
+  stage: test
+  image: python:3.13-slim
+  script:
+    - cd auth-service
+    - pip install -r requirements.txt
+    - pytest tests/ -v
+
+test-notes-service:
+  stage: test
+  image: python:3.13-slim
+  script:
+    - cd notes-service
+    - pip install -r requirements.txt
+    - pytest tests/ -v
+
+build-auth-service:
+  <<: *build_template
+  script:
+    - docker build -t "$REGISTRY/auth-service:$CI_COMMIT_SHORT_SHA" ./auth-service
+    - docker push "$REGISTRY/auth-service:$CI_COMMIT_SHORT_SHA"
+
+build-notes-service:
+  <<: *build_template
+  script:
+    - docker build -t "$REGISTRY/notes-service:$CI_COMMIT_SHORT_SHA" ./notes-service
+    - docker push "$REGISTRY/notes-service:$CI_COMMIT_SHORT_SHA"
+
+build-gateway:
+  <<: *build_template
+  script:
+    - docker build -t "$REGISTRY/gateway:$CI_COMMIT_SHORT_SHA" ./gateway
+    - docker push "$REGISTRY/gateway:$CI_COMMIT_SHORT_SHA"
+
+build-frontend:
+  <<: *build_template
+  script:
+    - docker build -t "$REGISTRY/frontend:$CI_COMMIT_SHORT_SHA" ./frontend
+    - docker push "$REGISTRY/frontend:$CI_COMMIT_SHORT_SHA"
+
+
+.trivy_template: &trivy_template
+  stage: test
+  image: aquasec/trivy:latest
+  script:
+    - trivy image --exit-code 0 --severity HIGH,CRITICAL --format table "$IMAGE"
+  # exit-code 0 means "report but don't fail the pipeline" -
+  # switch to 1 once you're ready to actually block on vulnerabilities
+
+trivy-auth-service:
+  <<: *trivy_template
+  needs: ["build-auth-service"]
+  variables:
+    IMAGE: "$REGISTRY/auth-service:$CI_COMMIT_SHORT_SHA"
+
+trivy-notes-service:
+  <<: *trivy_template
+  needs: ["build-notes-service"]
+  variables:
+    IMAGE: "$REGISTRY/notes-service:$CI_COMMIT_SHORT_SHA"
+
+trivy-gateway:
+  <<: *trivy_template
+  needs: ["build-gateway"]
+  variables:
+    IMAGE: "$REGISTRY/gateway:$CI_COMMIT_SHORT_SHA"
+
+trivy-frontend:
+  <<: *trivy_template
+  needs: ["build-frontend"]
+  variables:
+    IMAGE: "$REGISTRY/frontend:$CI_COMMIT_SHORT_SHA"
+
+update-manifests:
+  stage: update-manifests
+  image: alpine:latest
+  needs:
+    - build-auth-service
+    - build-notes-service
+    - build-gateway
+    - build-frontend
+  before_script:
+    - apk add --no-cache git sed
+  script:
+    # swap in the freshly-built image tags inside the k8s YAML,
+    # then commit that change back to the repo - this is the
+    # step ArgoCD is watching for.
+    - sed -i "s|image: .*auth-service:.*|image: $REGISTRY/auth-service:$CI_COMMIT_SHORT_SHA|" kubernetes/auth-service.yaml
+    - sed -i "s|image: .*notes-service:.*|image: $REGISTRY/notes-service:$CI_COMMIT_SHORT_SHA|" kubernetes/notes-service.yaml
+    - sed -i "s|image: .*gateway:.*|image: $REGISTRY/gateway:$CI_COMMIT_SHORT_SHA|" kubernetes/gateway.yaml
+    - sed -i "s|image: .*frontend:.*|image: $REGISTRY/frontend:$CI_COMMIT_SHORT_SHA|" kubernetes/frontend.yaml
+    - git config user.email "ci@gitlab.com"
+    - git config user.name "GitLab CI"
+    - git add kubernetes/
+    - git commit -m "ci: update image tags to $CI_COMMIT_SHORT_SHA [skip ci]"
+    - git push "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" HEAD:$CI_COMMIT_BRANCH
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
