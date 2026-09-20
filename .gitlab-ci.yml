@@ -138,7 +138,7 @@ update-manifests:
     - git config user.email "ci@gitlab.com"
     - git config user.name "GitLab CI"
     - git add kubernetes/
-    - git commit -m "ci: update image tags to $CI_COMMIT_SHORT_SHA [skip ci]"
+    - 'git commit -m "ci: update image tags to $CI_COMMIT_SHORT_SHA [skip ci]"'
     - git push "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" HEAD:$CI_COMMIT_BRANCH
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
