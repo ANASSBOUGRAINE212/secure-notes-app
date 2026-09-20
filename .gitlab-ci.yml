@@ -12,12 +12,6 @@ stages:
 
 variables:
   REGISTRY: docker.io/anasbougraine
-  TRIVY_USERNAME: $CI_REGISTRY_USER
-  TRIVY_PASSWORD: $CI_REGISTRY_PASSWORD
-  TRIVY_AUTH_URL: $CI_REGISTRY
-  # GitLab automatically provides CI_REGISTRY, CI_REGISTRY_USER,
-  # CI_REGISTRY_PASSWORD, CI_REGISTRY_IMAGE for its built-in registry -
-  # nothing to configure manually for these.
 
 .build_template: &build_template
   stage: build
@@ -90,7 +84,13 @@ build-frontend:
 
 .trivy_template: &trivy_template
   stage: test
-  image: aquasec/trivy:latest
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  variables:
+    TRIVY_USERNAME: $DOCKERHUB_USERNAME
+    TRIVY_PASSWORD: $DOCKERHUB_TOKEN
+    TRIVY_AUTH_URL: https://index.docker.io/v1/
   script:
     - trivy image --exit-code 0 --severity HIGH,CRITICAL --format table "$IMAGE"
   # exit-code 0 means "report but don't fail the pipeline" -
