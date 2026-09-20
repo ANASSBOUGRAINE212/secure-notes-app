@@ -131,10 +131,10 @@ update-manifests:
     # swap in the freshly-built image tags inside the k8s YAML,
     # then commit that change back to the repo - this is the
     # step ArgoCD is watching for.
-    - sed -i "s|image: .*auth-service:.*|image: $REGISTRY/auth-service:$CI_COMMIT_SHORT_SHA|" kubernetes/auth-service.yaml
-    - sed -i "s|image: .*notes-service:.*|image: $REGISTRY/notes-service:$CI_COMMIT_SHORT_SHA|" kubernetes/notes-service.yaml
-    - sed -i "s|image: .*gateway:.*|image: $REGISTRY/gateway:$CI_COMMIT_SHORT_SHA|" kubernetes/gateway.yaml
-    - sed -i "s|image: .*frontend:.*|image: $REGISTRY/frontend:$CI_COMMIT_SHORT_SHA|" kubernetes/frontend.yaml
+    - 'sed -i "s|image: .*auth-service:.*|image: $REGISTRY/auth-service:$CI_COMMIT_SHORT_SHA|" kubernetes/auth-service.yaml'
+    - 'sed -i "s|image: .*notes-service:.*|image: $REGISTRY/notes-service:$CI_COMMIT_SHORT_SHA|" kubernetes/notes-service.yaml'
+    - 'sed -i "s|image: .*gateway:.*|image: $REGISTRY/gateway:$CI_COMMIT_SHORT_SHA|" kubernetes/gateway.yaml'
+    - 'sed -i "s|image: .*frontend:.*|image: $REGISTRY/frontend:$CI_COMMIT_SHORT_SHA|" kubernetes/frontend.yaml'
     - git config user.email "ci@gitlab.com"
     - git config user.name "GitLab CI"
     - git add kubernetes/
