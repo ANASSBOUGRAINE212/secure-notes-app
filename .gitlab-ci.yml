@@ -24,6 +24,8 @@ variables:
   image: docker:24
   services:
     - docker:24-dind
+  variables: 
+    DOCKER_TLS_CERTDIR: ""
   before_script:
     - docker info
     - docker login -u "$DOCKERHUB_USERNAME" -p "$DOCKERHUB_TOKEN" docker.io
