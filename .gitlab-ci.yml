@@ -13,6 +13,12 @@ stages:
 variables:
   REGISTRY: docker.io/anasbougraine
 
+
+container_scanning:
+  variables:
+    CS_IMAGE: "$REGISTRY/auth-service:$CI_COMMIT_SHORT_SHA"
+
+
 .build_template: &build_template
   stage: build
   image: docker:24
@@ -30,6 +36,7 @@ dependency-check:
   image: owasp/dependency-check:latest
   script:
     - /usr/share/dependency-check/bin/dependency-check.sh
+      --project "secure-notes"
       --scan ./auth-service/requirements.txt
       --scan ./notes-service/requirements.txt
       --format "HTML"
@@ -142,6 +149,6 @@ update-manifests:
     - git config user.name "GitLab CI"
     - git add kubernetes/
     - 'git commit -m "ci: update image tags to $CI_COMMIT_SHORT_SHA [skip ci]"'
-    - git push "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" HEAD:$CI_COMMIT_BRANCH
+    - git push "http://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" HEAD:$CI_COMMIT_BRANCH
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
