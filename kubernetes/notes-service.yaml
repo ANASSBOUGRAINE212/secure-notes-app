@@ -29,7 +29,7 @@ spec:
     spec:
       containers:
       - name: notes-service
-        image: yourusername/secure-notes-notes-service:latest
+        image: docker.io/anasbougraine/notes-service:905989a4
         ports:
         - containerPort: 8002
         env:
