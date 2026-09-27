@@ -29,7 +29,7 @@ spec:
     spec:
       containers:
       - name: auth-service
-        image: yourusername/secure-notes-auth-service:latest
+        image: docker.io/anasbougraine/auth-service:905989a4
         ports:
         - containerPort: 8001
         env:
