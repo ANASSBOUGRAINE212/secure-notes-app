@@ -1,29 +1,29 @@
-# TERRAFORM VARIABLES EXAMPLE
+# MiniStack
+ministack_endpoint    = "http://localhost:4566"
+ministack_access_key  = "test"
+ministack_secret_key  = "test"
+region                = "us-east-1"
 
-
-# General Settings
-aws_region     = "us-east-1"
-project_name   = "secure-notes"
-environment    = "dev"  # local, dev, staging, production
-use_local_emulator = false  # true for ministack emulator, false for real AWS
-
-# VPC Settings
+# Names and network
+project_name      = "secure-notes"
+environment       = "local"
 vpc_cidr           = "10.0.0.0/16"
-availability_zones = ["us-east-1a", "us-east-1b", "us-east-1c"]
+availability_zone  = "us-east-1a"
 
-# EKS Settings
-eks_cluster_name        = "secure-notes-eks"
-eks_version             = "1.31"
-eks_node_instance_types = ["t3.medium"]
-eks_node_desired_size   = 2
-eks_node_min_size       = 1
-eks_node_max_size       = 4
+# Keeping SSH access limited to your IP range is safer.
+allowed_ssh_cidr = "0.0.0.0/0"
 
-# RDS Settings
-rds_instance_class = "db.t3.micro"  # Use db.t3.small or larger for production
+# Starting with one control plane and two workers.
+kubernetes_control_plane_count = 1
+kubernetes_node_count          = 2
 
-# Database Credentials (CHANGE THESE!)
-auth_db_username  = "auth_admin"
-auth_db_password  = "CHANGE_ME_TO_STRONG_PASSWORD"
-notes_db_username = "notes_admin"
-notes_db_password  = "CHANGE_ME_TO_STRONG_PASSWORD"
+# Choosing an AMI that exists in your MiniStack setup.
+instance_ami = "ami-0c55b159cbfafe1f0"
+
+control_plane_instance_type = "t3.medium"
+worker_instance_type        = "t3.small"
+control_plane_volume_size   = 30
+worker_volume_size          = 20
+
+# Adding your public key here; keeping the private key on your computer.
+ssh_public_key = "REPLACE_WITH_YOUR_SSH_PUBLIC_KEY_CONTENT"

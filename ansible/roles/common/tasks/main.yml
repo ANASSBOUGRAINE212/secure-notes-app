@@ -1,0 +1,126 @@
+---
+
+- name: Setting the hostname
+  hostname:
+    name: "{{ inventory_hostname }}"
+  tags:
+    - hostname
+
+- name: Setting the timezone
+  timezone:
+    name: "{{ timezone | default('UTC') }}"
+  tags:
+    - timezone
+
+- name: Refreshing the package list
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  tags:
+    - packages
+
+- name: Upgrading installed packages
+  apt:
+    upgrade: dist
+    autoremove: yes
+    autoclean: yes
+  register: apt_upgrade
+  tags:
+    - packages
+    - upgrade
+
+- name: Installing common packages
+  apt:
+    name: "{{ common_packages }}"
+    state: present
+  tags:
+    - packages
+
+- name: Installing Python 3 and pip
+  apt:
+    name:
+      - python3
+      - python3-pip
+    state: present
+  tags:
+    - packages
+    - python
+
+- name: Setting the kernel options Kubernetes needs
+  sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_set: yes
+    reload: yes
+  loop:
+    - { name: 'net.bridge.bridge-nf-call-iptables', value: '1' }
+    - { name: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
+    - { name: 'net.ipv4.ip_forward', value: '1' }
+    - { name: 'vm.swappiness', value: '0' }
+  tags:
+    - sysctl
+    - kernel
+
+- name: Loading the required kernel modules
+  modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - overlay
+    - br_netfilter
+  tags:
+    - kernel
+    - modules
+
+- name: Keeping the kernel modules enabled after reboot
+  lineinfile:
+    path: /etc/modules-load.d/kubernetes.conf
+    line: "{{ item }}"
+    create: yes
+  loop:
+    - overlay
+    - br_netfilter
+  tags:
+    - kernel
+    - modules
+
+- name: Turning off swap
+  command: swapoff -a
+  when: ansible_swaptotal_mb > 0
+  tags:
+    - swap
+
+- name: Keeping swap disabled after reboot
+  lineinfile:
+    path: /etc/fstab
+    regexp: '^([^#].*\s+swap\s+.*)$'
+    line: '# \1'
+    backrefs: yes
+  tags:
+    - swap
+
+- name: Creating the required system directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /etc/systemd/system-preset
+    - /etc/apt/keyrings
+  tags:
+    - directories
+
+- name: Rebooting after a kernel update
+  reboot:
+    msg: "Rebooting after kernel update"
+    pre_reboot_delay: 5
+    post_reboot_delay: 30
+    reboot_timeout: 300
+  when:
+    - apt_upgrade is defined
+    - apt_upgrade.changed
+    - "'linux-image' in apt_upgrade.stdout or 'linux-headers' in apt_upgrade.stdout"
+  tags:
+    - reboot
+    - never  # Only run when explicitly specified

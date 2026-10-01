@@ -1,15 +1,34 @@
 # secrets - never commit this
 .env
+.env.*
+!.env.example
 auth-service/.env
+auth-service/.env.*
+!auth-service/.env.example
 notes-service/.env
+notes-service/.env.*
+!notes-service/.env.example
 kubernetes/secrets.yaml
+helm/secure-notes/secrets.yaml
+argocd/repo-secret.yaml
 
 # terraform
 terraform/*.tfstate
 terraform/*.tfstate.*
+terraform/*.tfplan
 terraform/*.tfvars
 terraform/.terraform/
 terraform/.terraform.lock.hcl
+
+# ansible
+ansible/inventory.ini
+ansible/*.retry
+ansible/ansible.log
+ansible/group_vars/all.yml
+
+# helm
+helm/secure-notes/charts/
+helm/secure-notes/*.tgz
 
 # python
 **/venv/
@@ -20,3 +39,8 @@ terraform/.terraform.lock.hcl
 .vscode/
 .idea/
 .DS_Store
+
+# SSH keys
+*.pem
+*.key
+!*.pub

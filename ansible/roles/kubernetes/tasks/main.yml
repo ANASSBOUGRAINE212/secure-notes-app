@@ -1,0 +1,25 @@
+---
+
+- name: Loading the selected Kubernetes installer
+  include_tasks: "install-{{ kubernetes_distribution | default('kubeadm') }}.yml"
+  tags:
+    - install
+
+- name: Configuring the control plane
+  include_tasks: configure-control-plane.yml
+  when: kubernetes_role == "control-plane"
+  tags:
+    - control-plane
+
+- name: Configuring a worker node
+  include_tasks: configure-worker.yml
+  when: kubernetes_role == "worker"
+  tags:
+    - worker
+
+- name: Installing the selected pod network plugin
+  include_tasks: install-cni.yml
+  when: kubernetes_role == "control-plane"
+  tags:
+    - cni
+    - network

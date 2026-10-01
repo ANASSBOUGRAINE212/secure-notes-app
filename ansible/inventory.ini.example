@@ -1,0 +1,22 @@
+# Inventory is Ansible's list of machines and groups.
+# inventory.ini, then replace the example host lines with VM addresses.
+
+# Control plane
+[k8s_control_plane]
+# secure-notes-k8s-control-plane-1 ansible_host=10.0.1.10 ansible_user=ubuntu private_ip=10.0.1.10
+
+# Workers
+[k8s_workers]
+# Example:
+# secure-notes-k8s-worker-1 ansible_host=10.0.1.20 ansible_user=ubuntu private_ip=10.0.1.20
+# secure-notes-k8s-worker-2 ansible_host=10.0.1.21 ansible_user=ubuntu private_ip=10.0.1.21
+
+# Combine both groups so common tasks can target every node.
+[k8s_all:children]
+k8s_control_plane
+k8s_workers
+
+# Shared connection settings
+[k8s_all:vars]
+ansible_ssh_private_key_file=~/.ssh/secure-notes-key
+ansible_python_interpreter=/usr/bin/python3

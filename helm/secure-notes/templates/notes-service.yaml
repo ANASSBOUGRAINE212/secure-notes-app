@@ -1,0 +1,64 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.notesService.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ .Values.notesService.name }}
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: notes-service
+spec:
+  selector:
+    app: {{ .Values.notesService.name }}
+  ports:
+  - port: {{ .Values.notesService.service.port }}
+    targetPort: {{ .Values.notesService.service.targetPort }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.notesService.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ .Values.notesService.name }}
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: notes-service
+spec:
+  replicas: {{ .Values.notesService.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.notesService.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.notesService.name }}
+    spec:
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: {{ .Values.notesService.name }}
+        image: "{{ .Values.imageRegistry }}/{{ .Values.imageOrganization }}/{{ .Values.notesService.image.repository }}:{{ .Values.notesService.image.tag }}"
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
+        ports:
+        - containerPort: {{ .Values.notesService.service.targetPort }}
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: NOTES_DATABASE_URL
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: JWT_SECRET
+        resources:
+          {{- toYaml .Values.notesService.resources | nindent 10 }}
+        livenessProbe:
+          {{- toYaml .Values.notesService.livenessProbe | nindent 10 }}
+        readinessProbe:
+          {{- toYaml .Values.notesService.readinessProbe | nindent 10 }}

@@ -1,0 +1,15 @@
+apiVersion: v2
+name: secure-notes
+description: Secure Notes services and databases
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - secure-notes
+  - microservices
+  - fastapi
+  - postgresql
+home: https://gitlab.com/your-org/secure-notes
+maintainers:
+  - name: DevSecOps Team
+    email: team@example.com

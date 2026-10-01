@@ -1,0 +1,92 @@
+---
+
+- name: Checking whether the control plane is already initialized
+  stat:
+    path: /etc/kubernetes/admin.conf
+  register: kubeadm_initialized
+  tags:
+    - init
+
+- name: Initializing the control plane
+  command: >
+    kubeadm init
+    --pod-network-cidr={{ pod_network_cidr }}
+    --service-cidr={{ service_cidr }}
+    --apiserver-advertise-address={{ private_ip }}
+  when: not kubeadm_initialized.stat.exists
+  register: kubeadm_init
+  tags:
+    - init
+
+- name: Creating root's kubeconfig directory
+  file:
+    path: /root/.kube
+    state: directory
+    mode: '0755'
+  tags:
+    - kubeconfig
+
+- name: Copying the admin config into root's kubeconfig
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /root/.kube/config
+    remote_src: yes
+    owner: root
+    group: root
+    mode: '0644'
+  tags:
+    - kubeconfig
+
+- name: Creating the Ansible user's kubeconfig directory
+  file:
+    path: "/home/{{ ansible_user }}/.kube"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+  tags:
+    - kubeconfig
+
+- name: Copying the admin config into the Ansible user's kubeconfig
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: "/home/{{ ansible_user }}/.kube/config"
+    remote_src: yes
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+  tags:
+    - kubeconfig
+
+- name: Generating the worker join command
+  command: kubeadm token create --print-join-command
+  register: join_command_output
+  changed_when: false
+  tags:
+    - join
+    - token
+
+- name: Saving the join command to a file
+  copy:
+    content: "{{ join_command_output.stdout }}"
+    dest: /tmp/kubernetes-join-command
+    mode: '0644'
+  tags:
+    - join
+    - token
+
+- name: Copying the join command to the control machine
+  fetch:
+    src: /tmp/kubernetes-join-command
+    dest: /tmp/kubernetes-join-command
+    flat: yes
+  tags:
+    - join
+    - token
+
+- name: Showing the join command
+  debug:
+    msg: "{{ join_command_output.stdout }}"
+  tags:
+    - join
+    - token

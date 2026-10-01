@@ -1,0 +1,14 @@
+---
+
+- name: Restarting SSH
+  systemd:
+    name: ssh
+    state: restarted
+
+- name: Restarting fail2ban
+  systemd:
+    name: fail2ban
+    state: restarted
+
+- name: Restarting auditd
+  command: service auditd restart

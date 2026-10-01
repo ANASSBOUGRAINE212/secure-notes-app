@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.notesDatabase.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ .Values.notesDatabase.name }}
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: database
+spec:
+  ports:
+  - port: {{ .Values.notesDatabase.service.port }}
+    name: postgres
+  clusterIP: None
+  selector:
+    app: {{ .Values.notesDatabase.name }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.notesDatabase.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ .Values.notesDatabase.name }}
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: database
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.notesDatabase.name }}
+  serviceName: "{{ .Values.notesDatabase.name }}"
+  replicas: {{ .Values.notesDatabase.replicaCount }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.notesDatabase.name }}
+    spec:
+      containers:
+      - name: postgres
+        image: "{{ .Values.notesDatabase.image.repository }}:{{ .Values.notesDatabase.image.tag }}"
+        ports:
+        - containerPort: {{ .Values.notesDatabase.service.port }}
+          name: postgres
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: NOTES_DB_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: NOTES_DB_PASSWORD
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: NOTES_DB_NAME
+        resources:
+          {{- toYaml .Values.notesDatabase.resources | nindent 10 }}
+        volumeMounts:
+        - name: pgdata
+          mountPath: /var/lib/postgresql/data
+
+  {{- if .Values.notesDatabase.persistence.enabled }}
+  volumeClaimTemplates:
+  - metadata:
+      name: pgdata
+    spec:
+      accessModes: [ "{{ .Values.notesDatabase.persistence.accessMode }}" ]
+      {{- if .Values.notesDatabase.persistence.storageClass }}
+      storageClassName: "{{ .Values.notesDatabase.persistence.storageClass }}"
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.notesDatabase.persistence.size }}
+  {{- end }}

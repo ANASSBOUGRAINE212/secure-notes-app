@@ -1,0 +1,64 @@
+---
+- name: Preparing Kubernetes nodes
+  hosts: k8s_all
+  become: true
+  tags:
+    - common
+  roles:
+    - common
+
+- name: Applying security settings to Kubernetes nodes
+  hosts: k8s_all
+  become: true
+  tags:
+    - hardening
+    - security
+  roles:
+    - hardening
+
+- name: Configuring the control plane
+  hosts: k8s_control_plane
+  become: true
+  tags:
+    - kubernetes
+    - control-plane
+  roles:
+    - kubernetes
+  vars:
+    kubernetes_role: control-plane
+
+- name: Configuring worker nodes
+  hosts: k8s_workers
+  become: true
+  tags:
+    - kubernetes
+    - workers
+  roles:
+    - kubernetes
+  vars:
+    kubernetes_role: worker
+
+- name: Checking the Kubernetes cluster
+  hosts: k8s_control_plane[0]
+  become: true
+  tags:
+    - always
+  tasks:
+    - name: Getting the cluster nodes
+      command: kubectl get nodes
+      register: cluster_nodes
+      changed_when: false
+      ignore_errors: true
+
+    - name: Showing the cluster nodes
+      debug:
+        var: cluster_nodes.stdout_lines
+      when: cluster_nodes.rc == 0
+
+    - name: Showing next steps
+      debug:
+        msg:
+          - "Kubernetes cluster is configured."
+          - "Checking the cluster with: kubectl get nodes"
+          - "Copying the kubeconfig if needed."
+          - "Deploying Secure Notes with ArgoCD."

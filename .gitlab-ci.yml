@@ -136,18 +136,18 @@ update-manifests:
     - build-gateway
     - build-frontend
   before_script:
-    - apk add --no-cache git sed
+    - apk add --no-cache git yq
   script:
-    # swap in the freshly-built image tags inside the k8s YAML,
-    # then commit that change back to the repo - this is the
-    # step ArgoCD is watching for.
-    - 'sed -i "s|image: .*auth-service:.*|image: $REGISTRY/auth-service:$CI_COMMIT_SHORT_SHA|" kubernetes/auth-service.yaml'
-    - 'sed -i "s|image: .*notes-service:.*|image: $REGISTRY/notes-service:$CI_COMMIT_SHORT_SHA|" kubernetes/notes-service.yaml'
-    - 'sed -i "s|image: .*gateway:.*|image: $REGISTRY/gateway:$CI_COMMIT_SHORT_SHA|" kubernetes/gateway.yaml'
-    - 'sed -i "s|image: .*frontend:.*|image: $REGISTRY/frontend:$CI_COMMIT_SHORT_SHA|" kubernetes/frontend.yaml'
+    # Update image tags in Helm values.yaml
+    # This is the step ArgoCD is watching for.
+    - |
+      yq eval ".authService.image.tag = \"$CI_COMMIT_SHORT_SHA\"" -i helm/secure-notes/values.yaml
+      yq eval ".notesService.image.tag = \"$CI_COMMIT_SHORT_SHA\"" -i helm/secure-notes/values.yaml
+      yq eval ".gateway.image.tag = \"$CI_COMMIT_SHORT_SHA\"" -i helm/secure-notes/values.yaml
+      yq eval ".frontend.image.tag = \"$CI_COMMIT_SHORT_SHA\"" -i helm/secure-notes/values.yaml
     - git config user.email "ci@gitlab.com"
     - git config user.name "GitLab CI"
-    - git add kubernetes/
+    - git add helm/secure-notes/values.yaml
     - 'git commit -m "ci: update image tags to $CI_COMMIT_SHORT_SHA [skip ci]"'
     - git push "http://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" HEAD:$CI_COMMIT_BRANCH
   rules:

@@ -1,53 +1,28 @@
-terraform {
-  required_version = ">= 1.0"
-  
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 6.0"
-    }
-  }
-
-  # Backend for remote state (uncomment for production with real AWS)
-  # backend "s3" {
-  #   bucket         = "my-terraform-state-bucket"
-  #   key            = "secure-notes/terraform.tfstate"
-  #   region         = "us-east-1"
-  #   encrypt        = true
-  #   dynamodb_table = "terraform-state-lock"
-  # }
-}
-
-# Configure the AWS Provider
+# Using the AWS provider's resource types with the local MiniStack emulator.
 provider "aws" {
-  region = var.aws_region
+  region = var.region
 
-  # MiniStack endpoints (only used when use_local_emulator = true)
-  dynamic "endpoints" {
-    for_each = var.use_local_emulator ? [1] : []
-    content {
-      ecr = "http://localhost:4566"
-      s3  = "http://localhost:4566"
-      iam = "http://localhost:4566"
-      sts = "http://localhost:4566"
-      eks = "http://localhost:4566"
-      rds = "http://localhost:4566"
-      ec2 = "http://localhost:4566"
-    }
+  # Sending supported AWS API requests to MiniStack.
+  endpoints {
+    ec2 = var.ministack_endpoint
+    s3  = var.ministack_endpoint
+    iam = var.ministack_endpoint
   }
 
-  access_key                  = var.use_local_emulator ? "test" : null
-  secret_key                  = var.use_local_emulator ? "test" : null
-  skip_credentials_validation = var.use_local_emulator
-  skip_metadata_api_check     = var.use_local_emulator
-  skip_requesting_account_id  = var.use_local_emulator
+  # Using MiniStack's dummy credentials, not AWS keys.
+  access_key                  = var.ministack_access_key
+  secret_key                  = var.ministack_secret_key
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+  skip_requesting_account_id  = true
 
-  # Default tags applied to all resources
+  # Applying these tags to every resource.
   default_tags {
     tags = {
       Project     = var.project_name
       Environment = var.environment
       ManagedBy   = "Terraform"
+      Platform    = "MiniStack"
     }
   }
 }

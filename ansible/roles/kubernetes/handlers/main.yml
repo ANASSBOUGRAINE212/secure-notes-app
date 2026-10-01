@@ -1,0 +1,12 @@
+---
+
+- name: Restarting kubelet
+  systemd:
+    name: kubelet
+    state: restarted
+    daemon_reload: yes
+
+- name: Restarting containerd
+  systemd:
+    name: containerd
+    state: restarted

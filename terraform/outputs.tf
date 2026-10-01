@@ -1,122 +1,123 @@
-# ECR OUTPUTS
+# Outputs are values Terraform prints after an apply. The IP addresses and
+# inventory lines are useful when preparing Ansible's list of machines.
 
-output "ecr_repository_urls" {
-  description = "ECR repository URLs for each service"
-  value       = { for name, repo in aws_ecr_repository.service : name => repo.repository_url }
-}
-
-# S3 OUTPUTS
-
-
-output "artifacts_bucket_name" {
-  description = "Name of the S3 artifacts bucket"
-  value       = aws_s3_bucket.artifacts.bucket
-}
-
-output "artifacts_bucket_arn" {
-  description = "ARN of the S3 artifacts bucket"
-  value       = aws_s3_bucket.artifacts.arn
-}
-
-
-# VPC OUTPUTS
+# Network
 
 output "vpc_id" {
   description = "ID of the VPC"
   value       = aws_vpc.main.id
 }
 
-output "public_subnet_ids" {
-  description = "IDs of public subnets"
-  value       = aws_subnet.public[*].id
+output "vpc_cidr" {
+  description = "CIDR block of the VPC"
+  value       = aws_vpc.main.cidr_block
 }
 
-output "private_subnet_ids" {
-  description = "IDs of private subnets"
-  value       = aws_subnet.private[*].id
+output "subnet_id" {
+  description = "ID of the public subnet"
+  value       = length(aws_subnet.public) > 0 ? aws_subnet.public[0].id : null
 }
 
-# EKS OUTPUTS
+# Control plane
 
-output "eks_cluster_id" {
-  description = "EKS cluster ID"
-  value       = aws_eks_cluster.main.id
+output "control_plane_instance_ids" {
+  description = "Instance IDs of Kubernetes control plane nodes"
+  value       = aws_instance.k8s_control_plane[*].id
 }
 
-output "eks_cluster_name" {
-  description = "EKS cluster name"
-  value       = aws_eks_cluster.main.name
+output "control_plane_public_ips" {
+  description = "Public IP addresses of Kubernetes control plane nodes"
+  value       = aws_instance.k8s_control_plane[*].public_ip
 }
 
-output "eks_cluster_endpoint" {
-  description = "Endpoint for EKS control plane"
-  value       = aws_eks_cluster.main.endpoint
+output "control_plane_private_ips" {
+  description = "Private IP addresses of Kubernetes control plane nodes"
+  value       = aws_instance.k8s_control_plane[*].private_ip
 }
 
-output "eks_cluster_security_group_id" {
-  description = "Security group ID attached to the EKS cluster"
-  value       = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id
+output "control_plane_public_dns" {
+  description = "Public DNS names of Kubernetes control plane nodes"
+  value       = aws_instance.k8s_control_plane[*].public_dns
 }
 
-output "eks_cluster_certificate_authority_data" {
-  description = "Base64 encoded certificate data required to communicate with the cluster"
-  value       = aws_eks_cluster.main.certificate_authority[0].data
-  sensitive   = true
+# Workers
+
+output "worker_instance_ids" {
+  description = "Instance IDs of Kubernetes worker nodes"
+  value       = aws_instance.k8s_workers[*].id
 }
 
-output "eks_node_group_id" {
-  description = "EKS node group ID"
-  value       = aws_eks_node_group.main.id
+output "worker_public_ips" {
+  description = "Public IP addresses of Kubernetes worker nodes"
+  value       = aws_instance.k8s_workers[*].public_ip
 }
 
-output "eks_kubectl_config" {
-  description = "kubectl config command to connect to the cluster"
-  value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${aws_eks_cluster.main.name}"
+output "worker_private_ips" {
+  description = "Private IP addresses of Kubernetes worker nodes"
+  value       = aws_instance.k8s_workers[*].private_ip
 }
 
-# RDS OUTPUTS
-
-
-output "auth_db_endpoint" {
-  description = "Endpoint for auth service database"
-  value       = aws_db_instance.auth.endpoint
+output "worker_public_dns" {
+  description = "Public DNS names of Kubernetes worker nodes"
+  value       = aws_instance.k8s_workers[*].public_dns
 }
 
-output "auth_db_address" {
-  description = "Address for auth service database"
-  value       = aws_db_instance.auth.address
+output "ssh_key_name" {
+  description = "Name of the SSH key pair used for instances"
+  value       = aws_key_pair.k8s_nodes.key_name
 }
 
-output "auth_db_name" {
-  description = "Database name for auth service"
-  value       = aws_db_instance.auth.db_name
+# Security groups
+output "control_plane_security_group_id" {
+  description = "Security group ID for control plane nodes"
+  value       = aws_security_group.k8s_control_plane.id
 }
 
-output "notes_db_endpoint" {
-  description = "Endpoint for notes service database"
-  value       = aws_db_instance.notes.endpoint
+output "worker_security_group_id" {
+  description = "Security group ID for worker nodes"
+  value       = aws_security_group.k8s_workers.id
 }
 
-output "notes_db_address" {
-  description = "Address for notes service database"
-  value       = aws_db_instance.notes.address
+# Inventory lines for Ansible
+output "ansible_inventory_control_plane" {
+  description = "Ansible inventory entries for control plane nodes (copy to inventory.ini)"
+  value = join("\n", [
+    for idx, instance in aws_instance.k8s_control_plane :
+    "${instance.tags["Name"]} ansible_host=${instance.public_ip} ansible_user=ubuntu private_ip=${instance.private_ip}"
+  ])
 }
 
-output "notes_db_name" {
-  description = "Database name for notes service"
-  value       = aws_db_instance.notes.db_name
+output "ansible_inventory_workers" {
+  description = "Ansible inventory entries for worker nodes (copy to inventory.ini)"
+  value = join("\n", [
+    for idx, instance in aws_instance.k8s_workers :
+    "${instance.tags["Name"]} ansible_host=${instance.public_ip} ansible_user=ubuntu private_ip=${instance.private_ip}"
+  ])
 }
 
-# CONNECTION STRINGS (for Kubernetes secrets)
-
-output "auth_db_connection_string" {
-  description = "PostgreSQL connection string for auth service (format for DATABASE_URL)"
-  value       = "postgresql://${var.auth_db_username}:${var.auth_db_password}@${aws_db_instance.auth.address}:5432/${aws_db_instance.auth.db_name}"
-  sensitive   = true
+# SSH commands and cluster summary
+output "ssh_connection_commands" {
+  description = "SSH commands to connect to each node"
+  value = merge(
+    {
+      for idx, instance in aws_instance.k8s_control_plane :
+      "control-plane-${idx + 1}" => "ssh -i ~/.ssh/id_rsa ubuntu@${instance.public_ip}"
+    },
+    {
+      for idx, instance in aws_instance.k8s_workers :
+      "worker-${idx + 1}" => "ssh -i ~/.ssh/id_rsa ubuntu@${instance.public_ip}"
+    }
+  )
 }
 
-output "notes_db_connection_string" {
-  description = "PostgreSQL connection string for notes service (format for DATABASE_URL)"
-  value       = "postgresql://${var.notes_db_username}:${var.notes_db_password}@${aws_db_instance.notes.address}:5432/${aws_db_instance.notes.db_name}"
-  sensitive   = true
+output "cluster_summary" {
+  description = "Summary of the provisioned Kubernetes cluster infrastructure"
+  value = {
+    control_plane_count = length(aws_instance.k8s_control_plane)
+    worker_count        = length(aws_instance.k8s_workers)
+    total_nodes         = length(aws_instance.k8s_control_plane) + length(aws_instance.k8s_workers)
+    vpc_cidr            = aws_vpc.main.cidr_block
+    control_plane_ips   = aws_instance.k8s_control_plane[*].public_ip
+    worker_ips          = aws_instance.k8s_workers[*].public_ip
+  }
 }

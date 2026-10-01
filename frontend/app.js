@@ -5,8 +5,8 @@
 // const NOTES_BASE = "http://localhost:8002";
 
 // DOCKER mode (uncomment this pair, comment out Manual pair)
-const AUTH_BASE = "http://localhost:8080";
-const NOTES_BASE = "http://localhost:8080";
+const AUTH_BASE = "http://localhost:8081";
+const NOTES_BASE = "http://localhost:8081";
 
 let mode = "login"; // or "register"
 let token = localStorage.getItem("notes_token");

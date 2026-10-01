@@ -1,111 +1,139 @@
-# GENERAL VARIABLES
+# Settings for the MiniStack deployment.
 
-variable "aws_region" {
-  description = "AWS region for resources"
+variable "region" {
+  description = "AWS region (used by MiniStack for compatibility)"
   type        = string
   default     = "us-east-1"
 }
 
+variable "ministack_endpoint" {
+  description = "MiniStack API endpoint (e.g., http://localhost:4566 for LocalStack, or MiniStack-specific endpoint)"
+  type        = string
+  default     = "http://localhost:4566"
+}
+
+variable "ministack_access_key" {
+  description = "Access key for MiniStack (dummy value, not real AWS credentials)"
+  type        = string
+  default     = "test"
+  sensitive   = true
+}
+
+variable "ministack_secret_key" {
+  description = "Secret key for MiniStack (dummy value, not real AWS credentials)"
+  type        = string
+  default     = "test"
+  sensitive   = true
+}
+
+# Project
+
 variable "project_name" {
-  description = "Project name used for resource naming"
+  description = "Project name used for resource naming and tagging"
   type        = string
   default     = "secure-notes"
 }
 
 variable "environment" {
-  description = "Environment (local, dev, staging, production)"
+  description = "Environment name (local, dev, staging, production)"
   type        = string
   default     = "local"
+
+  validation {
+    condition     = contains(["local", "dev", "staging", "production"], var.environment)
+    error_message = "Environment must be one of: local, dev, staging, production"
+  }
 }
 
-variable "use_local_emulator" {
-  description = "Set to true for MiniStack, false for real AWS"
-  type        = bool
-  default     = true
-}
-
-# VPC VARIABLES
+# Network
 
 variable "vpc_cidr" {
   description = "CIDR block for VPC"
   type        = string
   default     = "10.0.0.0/16"
+
+  validation {
+    condition     = can(cidrhost(var.vpc_cidr, 0))
+    error_message = "VPC CIDR must be a valid IPv4 CIDR block"
+  }
 }
 
-variable "availability_zones" {
-  description = "List of availability zones"
-  type        = list(string)
-  default     = ["us-east-1a", "us-east-1b", "us-east-1c"]
-}
-
-# EKS VARIABLES
-
-variable "eks_cluster_name" {
-  description = "Name of the EKS cluster"
+variable "availability_zone" {
+  description = "Availability zone for resources (single-AZ deployment for local environment)"
   type        = string
-  default     = "secure-notes-eks"
+  default     = "us-east-1a"
 }
 
-variable "eks_version" {
-  description = "Kubernetes version for EKS"
+variable "allowed_ssh_cidr" {
+  description = "CIDR block allowed to SSH into instances"
   type        = string
-  default     = "1.31"
+  default     = "0.0.0.0/0"
 }
 
-variable "eks_node_instance_types" {
-  description = "EC2 instance types for EKS nodes"
-  type        = list(string)
-  default     = ["t3.medium"]
-}
+# Kubernetes nodes
 
-variable "eks_node_desired_size" {
-  description = "Desired number of EKS worker nodes"
-  type        = number
-  default     = 2
-}
-
-variable "eks_node_min_size" {
-  description = "Minimum number of EKS worker nodes"
+variable "kubernetes_control_plane_count" {
+  description = "Number of Kubernetes control plane nodes (1 for single-master, 3+ for HA)"
   type        = number
   default     = 1
+
+  validation {
+    condition     = var.kubernetes_control_plane_count >= 0 && var.kubernetes_control_plane_count <= 5
+    error_message = "Control plane count must be between 0 and 5"
+  }
 }
 
-variable "eks_node_max_size" {
-  description = "Maximum number of EKS worker nodes"
+variable "kubernetes_node_count" {
+  description = "Number of Kubernetes worker nodes"
   type        = number
-  default     = 4
+  default     = 2
+
+  validation {
+    condition     = var.kubernetes_node_count >= 0 && var.kubernetes_node_count <= 10
+    error_message = "Worker node count must be between 0 and 10"
+  }
 }
 
-# RDS VARIABLES
+# Instance sizes and disks
 
-variable "rds_instance_class" {
-  description = "RDS instance class"
+variable "instance_ami" {
+  description = "AMI ID for EC2 instances (should be Ubuntu 22.04 LTS or similar)"
   type        = string
-  default     = "db.t3.micro"
+  default     = "ami-0c55b159cbfafe1f0" # Placeholder - adjust for your MiniStack environment
 }
 
-variable "auth_db_username" {
-  description = "Username for auth database"
+variable "control_plane_instance_type" {
+  description = "Instance type for Kubernetes control plane nodes"
   type        = string
-  default     = "auth_admin"
-  sensitive   = true
+  default     = "t3.medium" # 2 vCPU, 4 GB RAM - minimum for control plane
 }
 
-variable "auth_db_password" {
-  description = "Password for auth database"
+variable "worker_instance_type" {
+  description = "Instance type for Kubernetes worker nodes"
   type        = string
-  sensitive   = true
+  default     = "t3.small" # 2 vCPU, 2 GB RAM - suitable for worker nodes
 }
 
-variable "notes_db_username" {
-  description = "Username for notes database"
-  type        = string
-  default     = "notes_admin"
-  sensitive   = true
+variable "control_plane_volume_size" {
+  description = "Root volume size in GB for control plane nodes"
+  type        = number
+  default     = 30
 }
 
-variable "notes_db_password" {
-  description = "Password for notes database"
+variable "worker_volume_size" {
+  description = "Root volume size in GB for worker nodes"
+  type        = number
+  default     = 20
+}
+
+# SSH access
+
+variable "ssh_public_key" {
+  description = "SSH public key content for accessing EC2 instances (not the file path)"
   type        = string
-  sensitive   = true
+
+  validation {
+    condition     = length(var.ssh_public_key) > 0
+    error_message = "SSH public key must be provided"
+  }
 }

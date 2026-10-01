@@ -1,0 +1,49 @@
+---
+
+- name: Checking whether this node has already joined
+  stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: kubelet_conf
+  tags:
+    - join
+
+- name: Waiting for the join command
+  wait_for:
+    path: /tmp/kubernetes-join-command
+    state: present
+    timeout: 300
+  delegate_to: localhost
+  become: no
+  when: not kubelet_conf.stat.exists
+  tags:
+    - join
+
+- name: Copying the join command to the worker
+  copy:
+    src: /tmp/kubernetes-join-command
+    dest: /tmp/kubernetes-join-command
+    mode: '0755'
+  when: not kubelet_conf.stat.exists
+  tags:
+    - join
+
+- name: Joining the worker to the cluster
+  shell: "bash /tmp/kubernetes-join-command"
+  when: not kubelet_conf.stat.exists
+  register: join_result
+  tags:
+    - join
+
+- name: Showing the join result
+  debug:
+    msg: "{{ join_result.stdout_lines }}"
+  when: join_result is changed
+  tags:
+    - join
+
+- name: Removing the temporary join command
+  file:
+    path: /tmp/kubernetes-join-command
+    state: absent
+  tags:
+    - cleanup

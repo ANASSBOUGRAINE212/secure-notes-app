@@ -1,0 +1,73 @@
+---
+# Settings shared by every host. Copy this file to all.yml before editing.
+project_name: secure-notes
+environment: local
+
+# System timezone
+timezone: "UTC"
+
+# Kubernetes
+kubernetes_version: "1.28"
+
+# This project currently provides the kubeadm installer.
+kubernetes_distribution: "kubeadm"
+
+# Pod and service network ranges
+pod_network_cidr: "10.244.0.0/16"
+service_cidr: "10.96.0.0/12"
+
+# Runtime and pod network plugin
+container_runtime: "containerd"
+cni_plugin: "calico"
+
+# Packages installed on every node
+common_packages:
+  - curl
+  - wget
+  - vim
+  - git
+  - htop
+  - net-tools
+  - ca-certificates
+  - gnupg
+  - lsb-release
+  - apt-transport-https
+  - software-properties-common
+
+# Security settings
+ssh_port: 22
+ssh_permit_root_login: "no"
+ssh_password_authentication: "no"
+ssh_pubkey_authentication: "yes"
+
+# UFW stays off until enabled here.
+enable_firewall: false  # Set to true for production
+firewall_allowed_ports:
+  - "22/tcp"    # SSH
+  - "6443/tcp"  # Kubernetes API
+  - "80/tcp"    # HTTP
+  - "443/tcp"   # HTTPS
+  - "30000:32767/tcp"  # NodePort range
+
+enable_unattended_upgrades: true
+
+# Services to stop and disable
+services_to_disable:
+  - snapd  # If not using snaps
+
+# Registry details used when creating an image pull secret.
+docker_registry: "docker.io"
+docker_registry_username: "YOUR_DOCKERHUB_USERNAME"
+docker_registry_password: "YOUR_DOCKERHUB_PASSWORD_OR_TOKEN"
+docker_registry_email: "your-email@example.com"
+
+# Application
+app_namespace: "secure-notes"
+
+# Actual database passwords belong in Kubernetes Secrets.
+auth_db_user: "auth_user"
+notes_db_user: "notes_user"
+
+# Optional integrations
+enable_prometheus: false
+enable_logging: false

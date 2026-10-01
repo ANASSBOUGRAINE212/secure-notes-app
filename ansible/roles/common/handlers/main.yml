@@ -1,0 +1,7 @@
+---
+- name: Reloading systemd
+  systemd:
+    daemon_reload: yes
+
+- name: Reloading sysctl settings
+  command: sysctl --system

@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.authDatabase.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ .Values.authDatabase.name }}
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: database
+spec:
+  ports:
+  - port: {{ .Values.authDatabase.service.port }}
+    name: postgres
+  clusterIP: None
+  selector:
+    app: {{ .Values.authDatabase.name }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.authDatabase.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ .Values.authDatabase.name }}
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: database
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.authDatabase.name }}
+  serviceName: "{{ .Values.authDatabase.name }}"
+  replicas: {{ .Values.authDatabase.replicaCount }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.authDatabase.name }}
+    spec:
+      containers:
+      - name: postgres
+        image: "{{ .Values.authDatabase.image.repository }}:{{ .Values.authDatabase.image.tag }}"
+        ports:
+        - containerPort: {{ .Values.authDatabase.service.port }}
+          name: postgres
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: AUTH_DB_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: AUTH_DB_PASSWORD
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: AUTH_DB_NAME
+        resources:
+          {{- toYaml .Values.authDatabase.resources | nindent 10 }}
+        volumeMounts:
+        - name: pgdata
+          mountPath: /var/lib/postgresql/data
+
+  {{- if .Values.authDatabase.persistence.enabled }}
+  volumeClaimTemplates:
+  - metadata:
+      name: pgdata
+    spec:
+      accessModes: [ "{{ .Values.authDatabase.persistence.accessMode }}" ]
+      {{- if .Values.authDatabase.persistence.storageClass }}
+      storageClassName: "{{ .Values.authDatabase.persistence.storageClass }}"
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.authDatabase.persistence.size }}
+  {{- end }}

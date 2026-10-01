@@ -7,9 +7,17 @@ spec:
   project: default
 
   source:
-    repoURL: https://gitlab.com/yourusername/secure-notes.git
+    repoURL: http://192.168.182.138/root/secure-notes
     targetRevision: main
-    path: kubernetes
+    path: helm/secure-notes
+    helm:
+      # Helm-specific configuration
+      valueFiles:
+        - values.yaml
+      # Override specific values if needed (optional)
+      # values: |
+      #   authService:
+      #     replicaCount: 2
 
   destination:
     server: https://kubernetes.default.svc

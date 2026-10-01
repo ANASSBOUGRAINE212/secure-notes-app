@@ -13,7 +13,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5500",      # local frontend dev
-        "http://localhost:8080",      # gateway in Docker
+        "http://localhost:8081",      # gateway in Docker
         # add your production domains here:
         # "https://notes.yourdomain.com",
     ],

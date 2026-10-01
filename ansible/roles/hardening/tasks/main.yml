@@ -1,0 +1,160 @@
+---
+
+- name: Updating SSH settings
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+  loop:
+    - { regexp: '^#?Port', line: 'Port {{ ssh_port }}' }
+    - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin {{ ssh_permit_root_login }}' }
+    - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication {{ ssh_password_authentication }}' }
+    - { regexp: '^#?PubkeyAuthentication', line: 'PubkeyAuthentication {{ ssh_pubkey_authentication }}' }
+    - { regexp: '^#?X11Forwarding', line: 'X11Forwarding no' }
+    - { regexp: '^#?MaxAuthTries', line: 'MaxAuthTries 3' }
+    - { regexp: '^#?ClientAliveInterval', line: 'ClientAliveInterval 300' }
+    - { regexp: '^#?ClientAliveCountMax', line: 'ClientAliveCountMax 2' }
+  notify: Restarting SSH
+  tags:
+    - ssh
+    - security
+
+- name: Keeping SSH enabled and running
+  systemd:
+    name: ssh
+    state: started
+    enabled: yes
+  tags:
+    - ssh
+
+- name: Installing fail2ban
+  apt:
+    name: fail2ban
+    state: present
+  tags:
+    - fail2ban
+    - security
+
+- name: Setting fail2ban rules for SSH
+  copy:
+    dest: /etc/fail2ban/jail.local
+    content: |
+      [DEFAULT]
+      bantime = 3600
+      findtime = 600
+      maxretry = 3
+      
+      [sshd]
+      enabled = true
+      port = {{ ssh_port }}
+      logpath = /var/log/auth.log
+    mode: '0644'
+  notify: Restarting fail2ban
+  tags:
+    - fail2ban
+    - security
+
+- name: Keeping fail2ban enabled and running
+  systemd:
+    name: fail2ban
+    state: started
+    enabled: yes
+  tags:
+    - fail2ban
+
+- name: Installing unattended upgrades
+  apt:
+    name: unattended-upgrades
+    state: present
+  when: enable_unattended_upgrades | default(true)
+  tags:
+    - updates
+    - security
+
+- name: Enabling automatic security updates
+  lineinfile:
+    path: /etc/apt/apt.conf.d/20auto-upgrades
+    line: "{{ item }}"
+    create: yes
+  loop:
+    - 'APT::Periodic::Update-Package-Lists "1";'
+    - 'APT::Periodic::Unattended-Upgrade "1";'
+    - 'APT::Periodic::AutocleanInterval "7";'
+  when: enable_unattended_upgrades | default(true)
+  tags:
+    - updates
+    - security
+
+- name: Setting up UFW when enabled
+  block:
+    - name: Installing UFW
+      apt:
+        name: ufw
+        state: present
+
+    - name: Setting UFW's default rules
+      ufw:
+        direction: "{{ item.direction }}"
+        policy: "{{ item.policy }}"
+      loop:
+        - { direction: 'incoming', policy: 'deny' }
+        - { direction: 'outgoing', policy: 'allow' }
+
+    - name: Opening the allowed ports
+      ufw:
+        rule: allow
+        port: "{{ item.split('/')[0] }}"
+        proto: "{{ item.split('/')[1] }}"
+      loop: "{{ firewall_allowed_ports }}"
+
+    - name: Enabling UFW
+      ufw:
+        state: enabled
+
+  when: enable_firewall | default(false)
+  tags:
+    - firewall
+    - security
+
+- name: Stopping and disabling selected services
+  systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: no
+  loop: "{{ services_to_disable | default([]) }}"
+  ignore_errors: yes
+  tags:
+    - services
+    - security
+
+- name: Setting file permissions
+  file:
+    path: "{{ item.path }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: '/etc/passwd', mode: '0644' }
+    - { path: '/etc/group', mode: '0644' }
+    - { path: '/etc/shadow', mode: '0640' }
+    - { path: '/etc/gshadow', mode: '0640' }
+  tags:
+    - permissions
+    - security
+
+- name: Installing auditd
+  apt:
+    name: auditd
+    state: present
+  tags:
+    - audit
+    - logging
+    - security
+
+- name: Keeping auditd enabled and running
+  systemd:
+    name: auditd
+    state: started
+    enabled: yes
+  tags:
+    - audit
+    - logging
