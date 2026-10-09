@@ -2,7 +2,7 @@
 
 Secure Notes is a small web app and a learning project for infrastructure and application delivery. It has a browser interface, an Nginx gateway, two FastAPI services, and a separate PostgreSQL database for each service.
 
-The infrastructure here is built with Terraform against MiniStack, an AWS-style local emulator. Ansible prepares the virtual machines, then installs Kubernetes with kubeadm. The app is packaged with Helm and ArgoCD watches the Git repository and deploys chart changes. This is a self-managed Kubernetes cluster on VMs; it does not use EKS.
+The infrastructure here is built with Terraform against MiniStack, an AWS-style local emulator. Ansible prepares the virtual machines, then installs Kubernetes with kubeadm. The app is packaged with Helm and ArgoCD watches the Git repository and deploys chart changes. This is a self-managed Kubernetes cluster on VMs; it does not use EKS. The checked-in settings describe a local learning environment, not separate development and production environments.
 
 ```text
 Terraform → MiniStack VMs → Ansible → Kubernetes
@@ -41,7 +41,7 @@ The example values are starting points. Check that the AMI and instance types ar
 
 ## 1. Create the VMs with Terraform
 
-Terraform creates a VPC, a public subnet, security groups, and EC2-style instances through MiniStack. The default VPC range is `10.0.0.0/16`; the subnet is carved from that private range. The instances also receive public IPs so you can reach them from your machine. A private VPC range and public instance IPs serve different purposes and can be used together.
+Terraform creates a VPC, a public subnet, security groups, and EC2-style instances through MiniStack. The default VPC range is `10.0.0.0/16`; the subnet is carved from that private range. The instances also receive public IPs so you can reach them from your machine. A private VPC range and public instance IPs serve different purposes and can be used together. Although `environment` accepts labels such as `dev` and `production` for resource tags, there are no separate dev/prod configurations or isolated states here. Setting the label to `production` would not make this production-ready: the defaults include a single availability zone, public VMs, and an SSH rule open to all IPv4 addresses.
 
 From the repository root, prepare your local settings and then run Terraform from its directory:
 
@@ -89,15 +89,26 @@ ansible-playbook site.yml
 
 After it finishes, use SSH to the control-plane machine and check `kubectl get nodes`. The nodes should report `Ready`. To use `kubectl` from your own machine, copy `~/.kube/config` from the control-plane VM to your local `~/.kube/config` with `scp`; use the control-plane public IP from Terraform and the same SSH key. Keep this file private because it grants cluster access.
 
-## 3. Set up ArgoCD and the app's secrets
+## 3. Bootstrap ArgoCD and the app's secrets
 
-Install ArgoCD in the cluster and wait for its pods to be ready. For a learning cluster, the upstream install manifest can be applied like this:
+The final `argocd` play in `ansible/site.yml` installs the pinned ArgoCD release, waits for its application controller and repository server, applies the GitLab repository credentials and app secrets, and registers the Secure Notes Application. ArgoCD then watches the Helm chart on `main` and syncs changes automatically.
+
+Before running that play, create the two ignored local secret files on the Ansible controller from the checked-in examples:
 
 ```sh
-kubectl create namespace argocd
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-kubectl wait --for=condition=Ready pods --all -n argocd --timeout=300s
+cp argocd/repo-secret.yaml.example argocd/repo-secret.yaml
+cp kubernetes/secrets.yaml.example kubernetes/secrets.yaml
 ```
+
+Edit `argocd/repo-secret.yaml` with the exact GitLab URL in `argocd/application.yaml`, your GitLab username, and a token with `read_repository` access. Edit `kubernetes/secrets.yaml` and replace all placeholder credentials with strong values. Both live files are ignored by Git; never commit them or paste their contents into logs or chat.
+
+Run only the ArgoCD bootstrap play from `ansible/` after the Kubernetes VMs are ready:
+
+```sh
+ansible-playbook -i inventory.ini site.yml --tags argocd --private-key ~/.ssh/secure-notes-key --become --ask-become-pass -T 60
+```
+
+The same tasks are included in a normal `ansible-playbook site.yml` run. They require working SSH access to the control-plane VM and access from that VM to the pinned ArgoCD manifest URL.
 
 To open the web UI from your machine, forward the ArgoCD service in a terminal and visit `https://localhost:8080`:
 
@@ -105,15 +116,9 @@ To open the web UI from your machine, forward the ArgoCD service in a terminal a
 kubectl port-forward svc/argocd-server -n argocd 8080:443
 ```
 
-The initial admin password is stored in the `argocd-initial-admin-secret` Kubernetes Secret. Read it only on your own machine and change it after logging in. The ArgoCD application is in `argocd/application.yaml`; it watches the `helm/secure-notes` chart on the `main` branch. Change its `repoURL` to the Git URL that ArgoCD can reach. The checked-in example URL is specific to one GitLab network and will not work from every machine.
+The initial admin password is stored in the `argocd-initial-admin-secret` Kubernetes Secret. Read it only on your own machine and change it after logging in. The Application and private GitLab repository credentials are applied by Ansible; the checked-in URL is specific to this lab network and must be reachable from the cluster.
 
-If the repository is private, configure its credentials in ArgoCD. Use `argocd/repo-secret.yaml.example` as a guide, put your own credentials only in the ignored local `argocd/repo-secret.yaml`, and never commit that live file. Rotate any credential that may have been exposed.
-
-The chart expects a Kubernetes Secret called `notes-secrets` by default (`secrets.create: false`). It needs database usernames, passwords and names, the two database URLs, and `JWT_SECRET`. A starting point is `kubernetes/secrets.yaml.example`: copy it to the ignored `kubernetes/secrets.yaml`, replace every `CHANGE_ME` value, and apply it after the `secure-notes` namespace exists:
-
-```sh
-kubectl apply -f kubernetes/secrets.yaml
-```
+The chart expects a Kubernetes Secret called `notes-secrets` by default (`secrets.create: false`). Ansible creates the namespace and applies the ignored local `kubernetes/secrets.yaml` before creating the ArgoCD Application, so the workloads do not start without their credentials.
 
 The two database URLs must use the same usernames and passwords set in that file. Use random values for both database passwords and for `JWT_SECRET`. The chart also refers to `dockerhub-secret` for image pulls. If needed, create it in the same namespace with your Docker Hub username and access token:
 
@@ -140,7 +145,7 @@ helm lint ./helm/secure-notes
 helm template secure-notes ./helm/secure-notes
 ```
 
-`helm template` prints the Kubernetes YAML locally; it does not contact a cluster. For the GitOps flow, apply `argocd/application.yaml` after the repository URL and required secrets are configured. ArgoCD then renders the chart with Helm and syncs the resources into the `secure-notes` namespace.
+`helm template` prints the Kubernetes YAML locally; it does not contact a cluster. For the GitOps flow, Ansible applies `argocd/application.yaml` after configuring the repository and app secrets. ArgoCD renders the chart with Helm and syncs the resources into the `secure-notes` namespace.
 
 Useful checks once it is running:
 
@@ -171,7 +176,7 @@ For app development without the cluster, copy `.env.example` to `.env`, fill in 
 docker compose --env-file .env -f docker/docker-compose.yml up --build
 ```
 
-The frontend is available at `http://localhost:8080`; the APIs use ports `8001` and `8002`. Keep `.env` local. To stop the containers, press `Ctrl+C` and run `docker compose --env-file .env -f docker/docker-compose.yml down`.
+The frontend is available at `http://localhost:5500`, and the gateway is published on port `8081`. The APIs use ports `8001` and `8002` inside the Compose network. Keep `.env` local. To stop the containers, press `Ctrl+C` and run `docker compose --env-file .env -f docker/docker-compose.yml down`.
 
 ## What this setup is for
 

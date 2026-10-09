@@ -7,7 +7,7 @@ spec:
   project: default
 
   source:
-    repoURL: http://192.168.182.138/root/secure-notes
+    repoURL: http://192.168.182.138/root/secure-notes.git
     targetRevision: main
     path: helm/secure-notes
     helm:

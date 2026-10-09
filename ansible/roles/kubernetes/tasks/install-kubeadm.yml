@@ -26,22 +26,32 @@
         state: directory
         mode: '0755'
 
-    - name: Writing the default containerd config
-      shell: containerd config default > /etc/containerd/config.toml
-      args:
-        creates: /etc/containerd/config.toml
+    - name: Reading the default containerd config
+      command: containerd config default
+      register: containerd_default_config
+      changed_when: false
 
-    - name: Setting containerd to use the systemd cgroup driver
-      lineinfile:
-        path: /etc/containerd/config.toml
-        regexp: '^\s+SystemdCgroup\s*='
-        line: '            SystemdCgroup = true'
-        insertafter: '^\[plugins\."io\.containerd\.grpc\.v1\.cri"\.containerd\.runtimes\.runc\.options\]'
+    - name: Writing the containerd config with systemd cgroups enabled
+      copy:
+        content: "{{ containerd_default_config.stdout | regex_replace('SystemdCgroup = false', 'SystemdCgroup = true') }}"
+        dest: /etc/containerd/config.toml
+        owner: root
+        group: root
+        mode: '0644'
+      register: containerd_config
 
-    - name: Restarting containerd
+    - name: Restarting containerd after a config change
       systemd:
         name: containerd
         state: restarted
+        enabled: yes
+        daemon_reload: yes
+      when: containerd_config.changed
+
+    - name: Ensuring containerd is enabled and running
+      systemd:
+        name: containerd
+        state: started
         enabled: yes
         daemon_reload: yes
 

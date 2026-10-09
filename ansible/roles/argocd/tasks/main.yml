@@ -1,0 +1,190 @@
+---
+- name: Check for the private Argo CD repository credentials on the Ansible controller
+  ansible.builtin.stat:
+    path: "{{ playbook_dir }}/../argocd/repo-secret.yaml"
+  delegate_to: localhost
+  become: false
+  register: argocd_repo_secret_file
+
+- name: Require the private Argo CD repository credentials
+  ansible.builtin.assert:
+    that:
+      - argocd_repo_secret_file.stat.exists
+      - argocd_repo_secret_file.stat.isreg
+    fail_msg: >-
+      Create argocd/repo-secret.yaml from argocd/repo-secret.yaml.example on the
+      Ansible controller. Use a GitLab token with read_repository access; do not
+      commit the live file.
+
+- name: Check for the Secure Notes application secrets on the Ansible controller
+  ansible.builtin.stat:
+    path: "{{ playbook_dir }}/../kubernetes/secrets.yaml"
+  delegate_to: localhost
+  become: false
+  register: secure_notes_secret_file
+
+- name: Require the Secure Notes application secrets
+  ansible.builtin.assert:
+    that:
+      - secure_notes_secret_file.stat.exists
+      - secure_notes_secret_file.stat.isreg
+    fail_msg: >-
+      Create kubernetes/secrets.yaml from kubernetes/secrets.yaml.example and
+      replace all placeholder credentials. Do not commit the live file.
+
+- name: Install or update the pinned Argo CD release
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - apply
+      - --server-side
+      - --force-conflicts
+      - -f
+      - "{{ argocd_install_manifest_url }}"
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: argocd_install_result
+  changed_when: >-
+    'created' in argocd_install_result.stdout or
+    'configured' in argocd_install_result.stdout or
+    'serverside-applied' in argocd_install_result.stdout
+
+- name: Wait for the Argo CD Application CRD
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - wait
+      - --for=condition=Established
+      - --timeout=300s
+      - crd/applications.argoproj.io
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  changed_when: false
+
+- name: Wait for the Argo CD repository server
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - rollout
+      - status
+      - deployment/argocd-repo-server
+      - -n
+      - argocd
+      - --timeout=600s
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  changed_when: false
+
+- name: Wait for the Argo CD application controller
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - rollout
+      - status
+      - statefulset/argocd-application-controller
+      - -n
+      - argocd
+      - --timeout=600s
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  changed_when: false
+
+- name: Stage and apply Argo CD repository credentials and app secrets
+  block:
+    - name: Copy private repository credentials to the control plane
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../argocd/repo-secret.yaml"
+        dest: /tmp/secure-notes-argocd-repo-secret.yaml
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+
+    - name: Create the Secure Notes namespace before its Secret
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - create
+          - namespace
+          - secure-notes
+          - --dry-run=client
+          - -o
+          - yaml
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: secure_notes_namespace_manifest
+      changed_when: false
+
+    - name: Apply the Secure Notes namespace
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - apply
+          - -f
+          - "-"
+        stdin: "{{ secure_notes_namespace_manifest.stdout }}"
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: secure_notes_namespace_apply
+      changed_when: "'created' in secure_notes_namespace_apply.stdout or 'configured' in secure_notes_namespace_apply.stdout"
+
+    - name: Copy Secure Notes application secrets to the control plane
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../kubernetes/secrets.yaml"
+        dest: /tmp/secure-notes-app-secrets.yaml
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+
+    - name: Apply private repository credentials
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - apply
+          - -f
+          - /tmp/secure-notes-argocd-repo-secret.yaml
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      no_log: true
+
+    - name: Apply Secure Notes application secrets
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - apply
+          - -f
+          - /tmp/secure-notes-app-secrets.yaml
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      no_log: true
+
+    - name: Copy the Argo CD Application manifest to the control plane
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../argocd/application.yaml"
+        dest: /tmp/secure-notes-argocd-application.yaml
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Register Secure Notes with Argo CD
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - apply
+          - -f
+          - /tmp/secure-notes-argocd-application.yaml
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: argocd_application_apply
+      changed_when: "'created' in argocd_application_apply.stdout or 'configured' in argocd_application_apply.stdout"
+
+  always:
+    - name: Remove staged secret and manifest files from the control plane
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/secure-notes-argocd-repo-secret.yaml
+        - /tmp/secure-notes-app-secrets.yaml
+        - /tmp/secure-notes-argocd-application.yaml

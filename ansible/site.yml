@@ -61,4 +61,13 @@
           - "Kubernetes cluster is configured."
           - "Checking the cluster with: kubectl get nodes"
           - "Copying the kubeconfig if needed."
-          - "Deploying Secure Notes with ArgoCD."
+          - "Argo CD bootstrap runs in the following play."
+
+- name: Installing Argo CD and bootstrapping Secure Notes
+  hosts: k8s_control_plane[0]
+  become: true
+  roles:
+    - role: argocd
+      tags:
+        - argocd
+        - deploy
