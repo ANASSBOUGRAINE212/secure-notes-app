@@ -61,7 +61,7 @@
     KUBECONFIG: /etc/kubernetes/admin.conf
   changed_when: false
 
-- name: Wait for the Argo CD repository server
+- name: Waiting for the Argo CD repository server
   ansible.builtin.command:
     argv:
       - kubectl
@@ -75,7 +75,7 @@
     KUBECONFIG: /etc/kubernetes/admin.conf
   changed_when: false
 
-- name: Wait for the Argo CD application controller
+- name: Waiting for the Argo CD application controller
   ansible.builtin.command:
     argv:
       - kubectl
@@ -128,7 +128,7 @@
       register: secure_notes_namespace_apply
       changed_when: "'created' in secure_notes_namespace_apply.stdout or 'configured' in secure_notes_namespace_apply.stdout"
 
-    - name: Copy Secure Notes application secrets to the control plane
+    - name: Copying Secure Notes application secrets to the control plane
       ansible.builtin.copy:
         src: "{{ playbook_dir }}/../kubernetes/secrets.yaml"
         dest: /tmp/secure-notes-app-secrets.yaml

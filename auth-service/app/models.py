@@ -11,5 +11,4 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # no relationship to Note here on purpose — notes live in a
-    # completely separate database owned by notes-service now.
+    # Notes are stored by notes-service in a separate database.

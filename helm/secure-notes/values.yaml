@@ -1,15 +1,11 @@
-# Default values used by the chart templates.
-
-# Namespace
 global:
   namespace: secure-notes
 
-# Image registry
+# Container images
 imageRegistry: docker.io
 imageOrganization: anasbougraine
 imagePullPolicy: IfNotPresent
 
-# Image pull secrets for private Docker registry
 imagePullSecrets:
   - name: dockerhub-secret
 
@@ -20,7 +16,7 @@ authService:
   
   image:
     repository: auth-service
-    tag: "905989a4"  # Updated by CI/CD pipeline
+    tag: "905989a4"
   
   service:
     type: ClusterIP
@@ -34,6 +30,13 @@ authService:
     limits:
       cpu: 500m
       memory: 512Mi
+
+  startupProbe:
+    httpGet:
+      path: /
+      port: 8001
+    periodSeconds: 5
+    failureThreshold: 24
   
   livenessProbe:
     httpGet:
@@ -56,7 +59,7 @@ notesService:
   
   image:
     repository: notes-service
-    tag: "905989a4"  # Updated by CI/CD pipeline
+    tag: "905989a4"
   
   service:
     type: ClusterIP
@@ -85,14 +88,14 @@ notesService:
     initialDelaySeconds: 5
     periodSeconds: 5
 
-# Gateway
+# API gateway
 gateway:
   name: gateway
   replicaCount: 1
   
   image:
     repository: gateway
-    tag: "905989a4"  # Updated by CI/CD pipeline
+    tag: "905989a4"
   
   service:
     type: ClusterIP
@@ -128,7 +131,7 @@ frontend:
   
   image:
     repository: frontend
-    tag: "905989a4"  # Updated by CI/CD pipeline
+    tag: "905989a4"
   
   service:
     type: ClusterIP
@@ -157,7 +160,7 @@ frontend:
     initialDelaySeconds: 3
     periodSeconds: 5
 
-# Auth database
+# Databases
 authDatabase:
   name: auth-db
   replicaCount: 1
@@ -173,7 +176,7 @@ authDatabase:
   persistence:
     enabled: true
     size: 1Gi
-    storageClass: ""  # Use default storage class
+    storageClass: ""  # Use the default StorageClass
     accessMode: ReadWriteOnce
   
   resources:
@@ -184,7 +187,6 @@ authDatabase:
       cpu: 1000m
       memory: 1Gi
 
-# Notes database
 notesDatabase:
   name: notes-db
   replicaCount: 1
@@ -200,7 +202,7 @@ notesDatabase:
   persistence:
     enabled: true
     size: 1Gi
-    storageClass: ""  # Use default storage class
+    storageClass: ""  # Use the default StorageClass
     accessMode: ReadWriteOnce
   
   resources:
@@ -214,13 +216,11 @@ notesDatabase:
 # Ingress
 ingress:
   enabled: true
-  className: ""  # Use default ingress class
+  className: traefik
   annotations: {}
-    # kubernetes.io/ingress.class: nginx
-    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
   
   hosts:
-    - host: ""  # Leave empty for default
+    - host: ""  # Leave empty to match any host
       paths:
         - path: /
           pathType: Prefix
@@ -233,17 +233,12 @@ ingress:
           backend: gateway
   
   tls: []
-    # - secretName: secure-notes-tls
-    #   hosts:
-    #     - secure-notes.example.com
 
-# Keeping real credentials out of this file; create the Secret separately.
-
+# App secrets
 secrets:
   name: notes-secrets
   create: false
 
-# Pod security
 podSecurityContext:
   fsGroup: 1000
 
@@ -255,13 +250,11 @@ securityContext:
     drop:
       - ALL
 
-# Service account
 serviceAccount:
   create: true
   annotations: {}
   name: ""
 
-# Autoscaling
 autoscaling:
   enabled: false
   minReplicas: 1
@@ -269,7 +262,6 @@ autoscaling:
   targetCPUUtilizationPercentage: 80
   targetMemoryUtilizationPercentage: 80
 
-# Scheduling
 nodeSelector: {}
 
 tolerations: []

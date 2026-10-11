@@ -1,12 +1,6 @@
-// two separate backends now - no gateway in this manual/no-Docker setup.
-// auth-service handles login/register, notes-service handles everything else.
-// MANUAL mode (uncomment this pair, comment out Docker pair)
-// const AUTH_BASE = "http://localhost:8001";
-// const NOTES_BASE = "http://localhost:8002";
-
-// DOCKER mode (uncomment this pair, comment out Manual pair)
-const AUTH_BASE = "http://localhost:8081";
-const NOTES_BASE = "http://localhost:8081";
+const API_BASE = window.location.port === "5500" ? "http://localhost:8081" : "";
+const AUTH_BASE = API_BASE;
+const NOTES_BASE = API_BASE;
 
 let mode = "login"; // or "register"
 let token = localStorage.getItem("notes_token");
@@ -69,7 +63,7 @@ async function handleAuthSubmit(e) {
         body: JSON.stringify({ email, password }),
       });
       if (!res.ok) throw await extractError(res);
-      // registered fine, now just log them straight in
+      // Log the new account in after registration.
     }
 
     const form = new URLSearchParams();
@@ -124,7 +118,7 @@ async function showApp() {
     userEmailEl.textContent = me.email;
     await loadNotes();
   } catch {
-    // token's dead or expired, kick back to login
+    // A failed profile request means the saved token is no longer valid.
     logout();
   }
 }
@@ -211,8 +205,6 @@ async function deleteNote(id) {
   await apiRequest(NOTES_BASE, `/notes/${id}`, "DELETE");
   await loadNotes();
 }
-
-// ---- tiny fetch wrappers ----
 
 async function apiGet(base, path) {
   return apiRequest(base, path, "GET");

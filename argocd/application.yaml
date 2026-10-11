@@ -1,31 +1,29 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
+# Argo CD keeps the app in sync with this repository.
 metadata:
   name: secure-notes
   namespace: argocd
 spec:
   project: default
 
+  # Chart to deploy
   source:
-    repoURL: http://192.168.182.138/root/secure-notes.git
+    repoURL: https://gitlab.com/anassbougraine644/secure-notes.git
     targetRevision: main
     path: helm/secure-notes
     helm:
-      # Helm-specific configuration
       valueFiles:
         - values.yaml
-      # Override specific values if needed (optional)
-      # values: |
-      #   authService:
-      #     replicaCount: 2
 
+  # Deploy into the cluster's secure-notes namespace
   destination:
     server: https://kubernetes.default.svc
     namespace: secure-notes
 
   syncPolicy:
     automated:
-      prune: true       # deletes resources ArgoCD no longer sees in git
-      selfHeal: true     # reverts any manual kubectl changes back to match git
+      prune: true # Remove resources deleted from Git
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true

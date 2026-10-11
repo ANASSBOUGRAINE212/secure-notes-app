@@ -138,8 +138,7 @@ update-manifests:
   before_script:
     - apk add --no-cache git yq
   script:
-    # Update image tags in Helm values.yaml
-    # This is the step ArgoCD is watching for.
+    # Update the tags Argo CD deploys.
     - |
       yq eval ".authService.image.tag = \"$CI_COMMIT_SHORT_SHA\"" -i helm/secure-notes/values.yaml
       yq eval ".notesService.image.tag = \"$CI_COMMIT_SHORT_SHA\"" -i helm/secure-notes/values.yaml
@@ -149,6 +148,6 @@ update-manifests:
     - git config user.name "GitLab CI"
     - git add helm/secure-notes/values.yaml
     - 'git commit -m "ci: update image tags to $CI_COMMIT_SHORT_SHA [skip ci]"'
-    - git push "http://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" HEAD:$CI_COMMIT_BRANCH
+    - git push "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" HEAD:$CI_COMMIT_BRANCH
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'

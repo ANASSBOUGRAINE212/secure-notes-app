@@ -1,6 +1,3 @@
-# Outputs are values Terraform prints after an apply. The IP addresses and
-# inventory lines are useful when preparing Ansible's list of machines.
-
 # Network
 
 output "vpc_id" {

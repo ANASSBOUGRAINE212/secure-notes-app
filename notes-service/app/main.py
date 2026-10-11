@@ -12,10 +12,8 @@ app = FastAPI(title="Notes Service")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5500",      # local frontend dev
-        "http://localhost:8081",      # gateway in Docker
-        # add your production domains here:
-        # "https://notes.yourdomain.com",
+        "http://localhost:5500",
+        "http://localhost:8081",
     ],
     allow_credentials=True,
     allow_methods=["*"],

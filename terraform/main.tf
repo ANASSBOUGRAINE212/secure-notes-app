@@ -1,5 +1,3 @@
-# MiniStack network and VM resources. Ansible configures the VMs afterward.
-
 locals {
   common_tags = {
     Project     = var.project_name
@@ -27,8 +25,6 @@ resource "aws_internet_gateway" "main" {
   })
 }
 
-# The subnet gives the nodes IP addresses in the VPC. `count` creates it only
-# when worker nodes are requested; `[0]` below refers to this first subnet.
 resource "aws_subnet" "public" {
   count = var.kubernetes_node_count > 0 ? 1 : 0
 
@@ -43,7 +39,6 @@ resource "aws_subnet" "public" {
   })
 }
 
-# This route sends traffic outside the VPC through the internet gateway.
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
@@ -66,14 +61,11 @@ resource "aws_route_table_association" "public" {
 
 # Security groups
 
-# Security groups are network firewalls. These rules allow the control-plane
-# ports needed by Kubernetes; internal cluster traffic is allowed from the VPC.
 resource "aws_security_group" "k8s_control_plane" {
   name        = "${var.project_name}-k8s-control-plane-sg"
   description = "Security group for Kubernetes control plane node"
   vpc_id      = aws_vpc.main.id
 
-  # SSH access
   ingress {
     description = "SSH access"
     from_port   = 22
@@ -82,7 +74,6 @@ resource "aws_security_group" "k8s_control_plane" {
     cidr_blocks = [var.allowed_ssh_cidr]
   }
 
-  # Kubernetes API server
   ingress {
     description = "Kubernetes API"
     from_port   = 6443
@@ -91,7 +82,6 @@ resource "aws_security_group" "k8s_control_plane" {
     cidr_blocks = [var.vpc_cidr]
   }
 
-  # etcd server client API
   ingress {
     description = "etcd"
     from_port   = 2379
@@ -100,7 +90,6 @@ resource "aws_security_group" "k8s_control_plane" {
     cidr_blocks = [var.vpc_cidr]
   }
 
-  # Kubelet API
   ingress {
     description = "Kubelet API"
     from_port   = 10250
@@ -109,7 +98,6 @@ resource "aws_security_group" "k8s_control_plane" {
     cidr_blocks = [var.vpc_cidr]
   }
 
-  # kube-scheduler
   ingress {
     description = "kube-scheduler"
     from_port   = 10259
@@ -118,7 +106,6 @@ resource "aws_security_group" "k8s_control_plane" {
     cidr_blocks = [var.vpc_cidr]
   }
 
-  # kube-controller-manager
   ingress {
     description = "kube-controller-manager"
     from_port   = 10257
@@ -127,7 +114,6 @@ resource "aws_security_group" "k8s_control_plane" {
     cidr_blocks = [var.vpc_cidr]
   }
 
-  # HTTP/HTTPS for ingress
   ingress {
     description = "HTTP"
     from_port   = 80
@@ -144,7 +130,6 @@ resource "aws_security_group" "k8s_control_plane" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Allow all traffic within the VPC
   ingress {
     description = "Internal VPC traffic"
     from_port   = 0
@@ -153,7 +138,6 @@ resource "aws_security_group" "k8s_control_plane" {
     cidr_blocks = [var.vpc_cidr]
   }
 
-  # Allow all outbound traffic
   egress {
     from_port   = 0
     to_port     = 0
@@ -166,13 +150,11 @@ resource "aws_security_group" "k8s_control_plane" {
   })
 }
 
-# Worker machines need the kubelet port, NodePort range, and internal traffic.
 resource "aws_security_group" "k8s_workers" {
   name        = "${var.project_name}-k8s-workers-sg"
   description = "Security group for Kubernetes worker nodes"
   vpc_id      = aws_vpc.main.id
 
-  # SSH access
   ingress {
     description = "SSH access"
     from_port   = 22
@@ -181,7 +163,6 @@ resource "aws_security_group" "k8s_workers" {
     cidr_blocks = [var.allowed_ssh_cidr]
   }
 
-  # Kubelet API
   ingress {
     description = "Kubelet API"
     from_port   = 10250
@@ -190,7 +171,6 @@ resource "aws_security_group" "k8s_workers" {
     cidr_blocks = [var.vpc_cidr]
   }
 
-  # NodePort Services
   ingress {
     description = "NodePort Services"
     from_port   = 30000
@@ -199,7 +179,6 @@ resource "aws_security_group" "k8s_workers" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Allow all traffic within the VPC
   ingress {
     description = "Internal VPC traffic"
     from_port   = 0
@@ -208,7 +187,6 @@ resource "aws_security_group" "k8s_workers" {
     cidr_blocks = [var.vpc_cidr]
   }
 
-  # Allow all outbound traffic
   egress {
     from_port   = 0
     to_port     = 0
@@ -221,7 +199,6 @@ resource "aws_security_group" "k8s_workers" {
   })
 }
 
-# Register the public SSH key used to connect to the VMs.
 resource "aws_key_pair" "k8s_nodes" {
   key_name   = "${var.project_name}-k8s-key"
   public_key = var.ssh_public_key
@@ -230,8 +207,6 @@ resource "aws_key_pair" "k8s_nodes" {
     Name = "${var.project_name}-k8s-key"
   })
 }
-
-# Control-plane VMs. Adding one to `count.index` makes names start at 1.
 
 resource "aws_instance" "k8s_control_plane" {
   count = var.kubernetes_control_plane_count
@@ -253,7 +228,6 @@ resource "aws_instance" "k8s_control_plane" {
 
   user_data = <<-EOF
               #!/bin/bash
-              # Basic setup - Ansible will handle the rest
               hostnamectl set-hostname k8s-control-plane-${count.index + 1}
               EOF
 
@@ -264,7 +238,7 @@ resource "aws_instance" "k8s_control_plane" {
   })
 }
 
-# Worker VMs.
+# Worker VMs
 
 resource "aws_instance" "k8s_workers" {
   count = var.kubernetes_node_count
@@ -286,7 +260,6 @@ resource "aws_instance" "k8s_workers" {
 
   user_data = <<-EOF
               #!/bin/bash
-              # Basic setup - Ansible will handle the rest
               hostnamectl set-hostname k8s-worker-${count.index + 1}
               EOF
 

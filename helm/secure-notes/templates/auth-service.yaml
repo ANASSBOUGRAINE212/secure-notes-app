@@ -1,3 +1,4 @@
+# Auth service
 apiVersion: v1
 kind: Service
 metadata:
@@ -58,6 +59,8 @@ spec:
               key: JWT_SECRET
         resources:
           {{- toYaml .Values.authService.resources | nindent 10 }}
+        startupProbe:
+          {{- toYaml .Values.authService.startupProbe | nindent 10 }}
         livenessProbe:
           {{- toYaml .Values.authService.livenessProbe | nindent 10 }}
         readinessProbe:

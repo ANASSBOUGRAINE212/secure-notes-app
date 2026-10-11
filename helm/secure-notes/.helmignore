@@ -1,8 +1,6 @@
-# Patterns to ignore when building packages.
-# This supports shell glob matching, relative path matching, and
-# negation (prefixed with !). Only one pattern per line.
+# Files to ignore when packaging the chart.
 .DS_Store
-# Common VCS dirs
+# Git files
 .git/
 .gitignore
 .bzr/

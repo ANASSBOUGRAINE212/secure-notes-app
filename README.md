@@ -1,183 +1,168 @@
 # Secure Notes
 
-Secure Notes is a small web app and a learning project for infrastructure and application delivery. It has a browser interface, an Nginx gateway, two FastAPI services, and a separate PostgreSQL database for each service.
+Secure Notes is a small notes app built from a browser frontend, an Nginx gateway, two FastAPI services, and separate PostgreSQL databases for authentication and notes. It is also a DevSecOps learning project: every push is tested and security-scanned by GitLab CI, and Argo CD deploys the result to Kubernetes from Git.
 
-The infrastructure here is built with Terraform against MiniStack, an AWS-style local emulator. Ansible prepares the virtual machines, then installs Kubernetes with kubeadm. The app is packaged with Helm and ArgoCD watches the Git repository and deploys chart changes. This is a self-managed Kubernetes cluster on VMs; it does not use EKS. The checked-in settings describe a local learning environment, not separate development and production environments.
+## Architecture
 
-```text
-Terraform → MiniStack VMs → Ansible → Kubernetes
-GitLab → CI pipeline → Docker Hub → Helm chart in Git → ArgoCD → Kubernetes
-```
+![Secure Notes architecture](docs\secure-notes-devsecops-icons-embedded.drawio.png)
 
-## What the app contains
+- The auth service handles registration, login, and JWTs.
+- The notes service stores notes and verifies JWTs.
+- The gateway routes `/auth` and `/notes` to the APIs.
+- The frontend uses those same paths, so it works behind the Kubernetes Ingress.
 
-- **Frontend:** HTML, CSS, and JavaScript for the browser.
-- **Nginx gateway:** routes requests to the right API.
-- **Auth service:** handles user registration and authentication.
-- **Notes service:** handles notes.
-- **Auth DB and Notes DB:** separate PostgreSQL databases.
+The repository also includes Terraform and Ansible:
 
-In a cluster, Helm creates the app resources and ArgoCD keeps them in sync with the chart in Git. Docker Compose is also available for local app development without the Terraform and Kubernetes setup.
+- **Terraform** runs against MiniStack, an AWS emulator, to validate the infrastructure code. MiniStack cannot create real VMs, so Terraform does not provision the cluster.
+- **Ansible** configures Ubuntu VMs with kubeadm and Argo CD. The cluster VMs are created manually in VMware, then configured with Ansible: set their addresses in the Ansible inventory and skip Terraform for the cluster.
 
-## Project map
+## Repository layout
 
-| Path | What you will find |
+| Path | Contents |
 | --- | --- |
-| `terraform/` | MiniStack provider settings, VPC, subnet, security groups, VMs, inputs, and outputs. |
-| `ansible/` | Main playbook and roles for base setup, hardening, and Kubernetes. |
-| `helm/secure-notes/` | Chart metadata, default settings, and templates for the app and databases. |
-| `argocd/` | ArgoCD application and repository credentials example. |
-| `kubernetes/` | Standalone Kubernetes manifests kept as a reference; the ArgoCD application uses Helm. |
-| `auth-service/`, `notes-service/` | Python APIs and their tests. |
-| `gateway/`, `frontend/` | Nginx configuration and browser app. |
-| `docker/` | Docker Compose configuration for local development. |
-| `.gitlab-ci.yml` | Existing GitLab build, test, scan, and image-tag update jobs. |
+| `auth-service/`, `notes-service/` | FastAPI services and tests |
+| `frontend/`, `gateway/` | Browser app and Nginx gateway |
+| `docker/` | Docker Compose setup for local development |
+| `helm/secure-notes/` | Kubernetes Helm chart |
+| `argocd/` | Argo CD Application and repository-secret example |
+| `kubernetes/` | Secret example and standalone manifests used for local testing |
+| `ansible/` | VM setup, hardening, Kubernetes, and Argo CD roles |
+| `terraform/` | MiniStack (AWS emulator) infrastructure configuration |
+| `.gitlab-ci.yml` | Build, test, scan, and manifest-update jobs |
 
-## Before starting
+## CI/CD flow
 
-For the full infrastructure route, you need MiniStack running, Terraform, Ansible, Helm, kubectl, an SSH key pair, Git, and access to the GitLab repository. Docker Hub credentials are needed if the images are private or if you want the pipeline to push images. Ansible is easiest to run from Linux or WSL.
+The GitLab pipeline runs the service tests and the security checks below, builds four images, and pushes them to Docker Hub. On `main`, `update-manifests` updates the image tags in `helm/secure-notes/values.yaml` and pushes the change back to GitLab. Argo CD watches that chart and syncs it to Kubernetes.
 
-The example values are starting points. Check that the AMI and instance types are available in your MiniStack setup before applying Terraform. Keep your private SSH key on your machine.
+| Check | Tool | What it covers |
+| --- | --- | --- |
+| Unit tests | pytest | Auth and notes services |
+| SAST | Semgrep | Insecure patterns in the source code |
+| Dependency scanning | OWASP Dependency-Check, GitLab dependency scanning | Known vulnerabilities in Python libraries |
+| Secret detection | GitLab secret detection | Credentials committed to the repository |
+| Image scanning | Trivy | OS packages and libraries in the built images; HIGH and CRITICAL findings fail the job <!-- confirm --> |
 
-## 1. Create the VMs with Terraform
+Set `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` as masked GitLab CI/CD variables. GitLab also needs to allow repository pushes from `CI_JOB_TOKEN` for the `update-manifests` job.
 
-Terraform creates a VPC, a public subnet, security groups, and EC2-style instances through MiniStack. The default VPC range is `10.0.0.0/16`; the subnet is carved from that private range. The instances also receive public IPs so you can reach them from your machine. A private VPC range and public instance IPs serve different purposes and can be used together. Although `environment` accepts labels such as `dev` and `production` for resource tags, there are no separate dev/prod configurations or isolated states here. Setting the label to `production` would not make this production-ready: the defaults include a single availability zone, public VMs, and an SSH rule open to all IPv4 addresses.
+## Security
 
-From the repository root, prepare your local settings and then run Terraform from its directory:
+- **Container images:** multi-stage builds that run as a non-root user, with an unprivileged Nginx image for the web containers.
+- **Resource limits and health checks:** the Helm chart sets CPU and memory limits and health checks, so one misbehaving pod cannot starve the node.
+- **Secrets kept out of Git:** `.env`, `kubernetes/secrets.yaml`, and `argocd/repo-secret.yaml` are ignored by Git; only `.example` files are committed. The values reach the cluster as Kubernetes Secrets, never inside images or the chart.
+- **Databases internal only:** each service has its own PostgreSQL database, reachable only inside the cluster through ClusterIP services.
+- **Authentication:** JWT-based login, passwords hashed with bcrypt, and CORS restricted to the app's own origins.
+- **Node hardening:** an Ansible `hardening` role applies a baseline to the Kubernetes nodes.
+- **GitOps delivery:** cluster changes come from Git through Argo CD, so every deployment is traceable to a commit.
 
-```sh
-cd terraform
-cp terraform.tfvars.example terraform.tfvars
-```
 
-Edit `terraform.tfvars`. In particular, set `ssh_public_key` to the contents of your public key file and check the MiniStack endpoint, AMI, region, and SSH source range. The example SSH rule allows `0.0.0.0/0` (any IPv4 address); set `allowed_ssh_cidr` to your own public address range where possible. Then:
+## Lab environment
 
-```sh
-terraform init
-terraform fmt -check
-terraform validate
-terraform plan
-```
+The lab runs as three VMware VMs on one Windows laptop.
 
-Read the plan before creating resources. If it looks right, run `terraform apply` and confirm the prompt. Terraform's outputs include public and private IPs and inventory lines for Ansible. State files and `terraform.tfvars` are local files and must stay out of Git.
+| VM | Role | vCPU | RAM | Disk |
+| --- | --- | --- | --- | --- |
+| Ubuntu controller VM | Docker Compose, self-hosted GitLab and runner, Ansible, Terraform and MiniStack, Minikube | 2 <!-- confirm --> | 4 GB <!-- confirm --> | existing disk |
+| `k8s-control-plane-1` | kubeadm control plane (API server, etcd, scheduler, controller manager) | 2 <!-- confirm --> | 4 GB | 30 GB <!-- confirm --> |
+| `k8s-worker-1` | Application pods, Argo CD, Traefik, PostgreSQL | 2 <!-- confirm --> | 4 GB | about 40 GB <!-- confirm --> |
 
-## 2. Prepare the VMs with Ansible
+The worker started with 2 GB of RAM. With that, the Argo CD repo-server repeatedly failed its liveness probe and was restarted, so the worker was raised to 4 GB. Treat 4 GB as the practical size for a worker that runs the app, Argo CD, Traefik, and two PostgreSQL pods. 
 
-Ansible uses an **inventory** to know which machines to connect to. Copy the examples and fill in the control-plane and worker addresses from Terraform's outputs:
+PS: Stop Docker Compose and MiniStack while the Kubernetes cluster is running to save memory.
 
-```sh
-cd ../ansible
-cp inventory.ini.example inventory.ini
-cp group_vars/all.yml.example group_vars/all.yml
-```
+## Deploy to the Kubernetes VMs
 
-Check the SSH private-key path and the settings in `group_vars/all.yml`. The roles in `site.yml` run in this order:
-
-1. `common` installs base packages and prepares Linux for Kubernetes.
-2. `hardening` applies the configured SSH, firewall, update, and logging settings.
-3. `kubernetes` installs containerd and Kubernetes packages, initializes the control plane, joins workers, and installs the configured pod network plugin.
-
-Here, a **playbook** lists the work, a **role** groups related tasks, and a **task** calls an Ansible module to make one change. For example, a package task uses the package manager module instead of running an ad hoc shell command.
-
-From `ansible/`, check connectivity and run the playbook:
+The following assumes Ubuntu VMs with a kubeadm cluster already created, both nodes `Ready`, and `kubectl` access from the control-plane VM. PostgreSQL needs a default StorageClass. If the cluster does not have one, install Rancher's local-path provisioner:
 
 ```sh
-ansible all -m ping
-ansible-playbook --syntax-check site.yml
-ansible-playbook site.yml
+kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.37/deploy/local-path-storage.yaml
+kubectl patch storageclass local-path --type merge \
+  -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
 ```
 
-After it finishes, use SSH to the control-plane machine and check `kubectl get nodes`. The nodes should report `Ready`. To use `kubectl` from your own machine, copy `~/.kube/config` from the control-plane VM to your local `~/.kube/config` with `scp`; use the control-plane public IP from Terraform and the same SSH key. Keep this file private because it grants cluster access.
+This stores database data on the node's local disk; it is suitable for this lab, not highly available storage.
 
-## 3. Bootstrap ArgoCD and the app's secrets
+### 1. Set the Ingress class
 
-The final `argocd` play in `ansible/site.yml` installs the pinned ArgoCD release, waits for its application controller and repository server, applies the GitLab repository credentials and app secrets, and registers the Secure Notes Application. ArgoCD then watches the Helm chart on `main` and syncs changes automatically.
+In `helm/secure-notes/values.yaml`, use:
 
-Before running that play, create the two ignored local secret files on the Ansible controller from the checked-in examples:
+```yaml
+# Ingress
+ingress:
+  enabled: true
+  className: traefik
+  annotations: {}
+```
+
+Committing this setting so Argo CD applies the Ingress with class `traefik`.
+
+### 2. Configure secrets and Argo CD
+
+On the Ansible machine, copy the examples and fill in the real values:
 
 ```sh
 cp argocd/repo-secret.yaml.example argocd/repo-secret.yaml
 cp kubernetes/secrets.yaml.example kubernetes/secrets.yaml
 ```
 
-Edit `argocd/repo-secret.yaml` with the exact GitLab URL in `argocd/application.yaml`, your GitLab username, and a token with `read_repository` access. Edit `kubernetes/secrets.yaml` and replace all placeholder credentials with strong values. Both live files are ignored by Git; never commit them or paste their contents into logs or chat.
+In `argocd/repo-secret.yaml`, use the GitLab project URL, a GitLab username, and a token with `read_repository` permission. In `kubernetes/secrets.yaml`, set the database URLs and a strong `JWT_SECRET`. The live files are ignored by Git; never commit them.
 
-Run only the ArgoCD bootstrap play from `ansible/` after the Kubernetes VMs are ready:
+Set the VM addresses and SSH settings in `ansible/inventory.ini` and `ansible/group_vars/all.yml`, then bootstrap Argo CD from the repository's `ansible/` directory:
 
 ```sh
-ansible-playbook -i inventory.ini site.yml --tags argocd --private-key ~/.ssh/secure-notes-key --become --ask-become-pass -T 60
+ansible-playbook -i inventory.ini site.yml --tags argocd \
+  --private-key ~/.ssh/secure-notes-key --become --ask-become-pass -T 60
 ```
 
-The same tasks are included in a normal `ansible-playbook site.yml` run. They require working SSH access to the control-plane VM and access from that VM to the pinned ArgoCD manifest URL.
+The play applies the repository credentials and app secret, then registers `argocd/application.yaml`. The application tracks the `main` branch and deploys the Helm chart.
 
-To open the web UI from your machine, forward the ArgoCD service in a terminal and visit `https://localhost:8080`:
+### 3. Install Traefik
+
+Running these commands on the control-plane VM. Traefik is installed into the cluster as a NodePort service:
 
 ```sh
-kubectl port-forward svc/argocd-server -n argocd 8080:443
+helm repo add traefik https://traefik.github.io/charts
+helm repo update
+helm upgrade --install traefik traefik/traefik \
+  --namespace traefik --create-namespace \
+  --set service.spec.type=NodePort \
+  --set ports.web.nodePort=30080 \
+  --set ports.websecure.nodePort=30443 \
+  --set ingressClass.enabled=true \
+  --set ingressClass.isDefaultClass=false \
+  --set ingressClass.name=traefik \
+  --set providers.kubernetesIngress.enabled=true \
+  --wait --timeout 5m
 ```
 
-The initial admin password is stored in the `argocd-initial-admin-secret` Kubernetes Secret. Read it only on your own machine and change it after logging in. The Application and private GitLab repository credentials are applied by Ansible; the checked-in URL is specific to this lab network and must be reachable from the cluster.
-
-The chart expects a Kubernetes Secret called `notes-secrets` by default (`secrets.create: false`). Ansible creates the namespace and applies the ignored local `kubernetes/secrets.yaml` before creating the ArgoCD Application, so the workloads do not start without their credentials.
-
-The two database URLs must use the same usernames and passwords set in that file. Use random values for both database passwords and for `JWT_SECRET`. The chart also refers to `dockerhub-secret` for image pulls. If needed, create it in the same namespace with your Docker Hub username and access token:
+Check the controller and app:
 
 ```sh
-kubectl create secret docker-registry dockerhub-secret \
-  --docker-server=docker.io \
-  --docker-username=YOUR_DOCKERHUB_USERNAME \
-  --docker-password=YOUR_DOCKERHUB_TOKEN \
-  --docker-email=YOUR_EMAIL \
-  --namespace=secure-notes
-```
-
-Do not put actual passwords or tokens in the chart, Git, or this README. The files under `kubernetes/` include example manifests, but ArgoCD deploys the Helm chart.
-
-The chart defaults to one replica per app component and one PostgreSQL pod per database. It requests persistent volumes using the cluster's default storage class. Ingress is enabled in the chart values, but you may need to set an ingress class and hostname for your cluster. For a local check, port-forward the gateway service after deployment.
-
-## 4. Deploy the chart
-
-You can inspect the chart before deploying it:
-
-```sh
-cd ..
-helm lint ./helm/secure-notes
-helm template secure-notes ./helm/secure-notes
-```
-
-`helm template` prints the Kubernetes YAML locally; it does not contact a cluster. For the GitOps flow, Ansible applies `argocd/application.yaml` after configuring the repository and app secrets. ArgoCD renders the chart with Helm and syncs the resources into the `secure-notes` namespace.
-
-Useful checks once it is running:
-
-```sh
-kubectl get nodes
+kubectl get pods -n traefik
+kubectl get svc -n traefik
+kubectl get ingress -n secure-notes
 kubectl get pods -n secure-notes
-kubectl get services -n secure-notes
-kubectl get events -n secure-notes --sort-by=.lastTimestamp
+kubectl get applications -n argocd
 ```
 
-To open the app locally, forward the gateway service and visit `http://localhost:8080`:
+Open the app at `http://<node-ip>:30080`, using the private IP of either Kubernetes node. This address is available only to machines that can reach the VM network. Access from another Wi-Fi device depends on VMware networking and firewall rules; bridged mode is usually needed for LAN access. This setup does not provide a public IP or HTTPS certificate.
 
-```sh
-kubectl port-forward -n secure-notes svc/gateway 8080:80
-```
+## Local development with Docker Compose
 
-## How the GitLab pipeline fits in
-
-The existing `.gitlab-ci.yml` builds the four application images, runs the configured tests and security scans, and pushes images to Docker Hub. On `main`, `update-manifests` uses `yq` to change the four image tags in `helm/secure-notes/values.yaml` to the commit's short SHA, then commits and pushes that change to GitLab. ArgoCD notices the chart update and deploys the new image versions.
-
-The pipeline does not install Helm or deploy directly to Kubernetes. Set `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` as GitLab CI variables for image publishing. The pipeline's actual jobs and conditions are defined in `.gitlab-ci.yml`.
-
-## Run the app with Docker Compose
-
-For app development without the cluster, copy `.env.example` to `.env`, fill in the local values, and run this from the repository root:
+Copy `.env.example` to `.env`, set local secrets, then run from the repository root:
 
 ```sh
 docker compose --env-file .env -f docker/docker-compose.yml up --build
 ```
 
-The frontend is available at `http://localhost:5500`, and the gateway is published on port `8081`. The APIs use ports `8001` and `8002` inside the Compose network. Keep `.env` local. To stop the containers, press `Ctrl+C` and run `docker compose --env-file .env -f docker/docker-compose.yml down`.
+Open the frontend at `http://localhost:5500`. The frontend uses the gateway on port `8081` for this local setup. In Kubernetes it uses the Ingress on the same address as the frontend. Stop the stack with `Ctrl+C`, then run:
 
-## What this setup is for
+```sh
+docker compose --env-file .env -f docker/docker-compose.yml down
+```
 
-This is a learning/demo setup built around MiniStack, public VM addresses, and a self-managed Kubernetes cluster. It is not a production deployment recipe. Before using a real cloud account, review network exposure, SSH rules, Kubernetes access, secret storage, backups, TLS, monitoring, logging, and recovery. In particular, do not carry the example's open SSH range into a public environment.
+## Notes
+
+- `kubernetes/` contains standalone manifests for local testing (Minikube); Argo CD deploys the Helm chart.
+- The chart uses `dockerhub-secret` as an image pull secret. Creating it in the `secure-notes` namespace if your Docker Hub repositories are private.
+- Terraform targets MiniStack, an AWS emulator, so it validates the infrastructure code but does not create the cluster VMs. Its example configuration includes public VM networking; review SSH and firewall rules before pointing it at a real cloud.
+- This is a learning setup, not a production deployment guide. Add TLS, backups, monitoring, and a managed secret solution before using real data.

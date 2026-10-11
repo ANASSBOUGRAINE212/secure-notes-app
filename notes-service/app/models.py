@@ -10,10 +10,7 @@ class Note(Base):
     title = Column(String, nullable=False)
     content = Column(Text, nullable=False)
 
-    # this used to be a ForeignKey to users.id, but users now live in a
-    # completely separate database (owned by auth-service). cross-database
-    # foreign keys aren't a thing in Postgres, so this is just a plain int —
-    # the actual identity check happens via the verified JWT, not the DB.
+    # The owning user is identified by the JWT; user records live in auth-service.
     owner_id = Column(Integer, nullable=False, index=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -10,9 +10,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models
 
-# THIS SECRET MUST MATCH notes-service's JWT_SECRET exactly.
-# auth-service issues the token, notes-service just verifies it —
-# no network call between them needed, they just share this one secret.
+# Keep this in sync with notes-service.
 SECRET_KEY = os.getenv("JWT_SECRET", "change-this-before-you-ship-anything")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60

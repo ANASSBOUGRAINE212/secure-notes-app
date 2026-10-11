@@ -1,5 +1,5 @@
 ---
-# Settings shared by every host. Copy this file to all.yml before editing.
+# Settings shared by every host.
 project_name: secure-notes
 environment: local
 
@@ -9,7 +9,7 @@ timezone: "UTC"
 # Kubernetes
 kubernetes_version: "1.28"
 
-# This project currently provides the kubeadm installer.
+# currently provides the kubeadm installer.
 kubernetes_distribution: "kubeadm"
 
 # Pod and service network ranges
@@ -41,7 +41,7 @@ ssh_password_authentication: "no"
 ssh_pubkey_authentication: "yes"
 
 # UFW stays off until enabled here.
-enable_firewall: false  # Set to true for production
+enable_firewall: false  # true for production
 firewall_allowed_ports:
   - "22/tcp"    # SSH
   - "6443/tcp"  # Kubernetes API
@@ -53,18 +53,18 @@ enable_unattended_upgrades: true
 
 # Services to stop and disable
 services_to_disable:
-  - snapd  # If not using snaps
+  - snapd  
 
 # Registry details used when creating an image pull secret.
 docker_registry: "docker.io"
 docker_registry_username: "YOUR_DOCKERHUB_USERNAME"
 docker_registry_password: "YOUR_DOCKERHUB_PASSWORD_OR_TOKEN"
-docker_registry_email: "your-email@example.com"
+docker_registry_email: "email@example.com"
 
 # Application
 app_namespace: "secure-notes"
 
-# Actual database passwords belong in Kubernetes Secrets.
+# database passwords belong in Kubernetes Secrets.
 auth_db_user: "auth_user"
 notes_db_user: "notes_user"
 
